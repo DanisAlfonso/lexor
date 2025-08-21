@@ -1,0 +1,126 @@
+import { create } from 'zustand';
+import { persist, subscribeWithSelector } from 'zustand/middleware';
+
+export type ViewType = 'editor' | 'flashcards' | 'study' | 'settings';
+
+export interface AppState {
+  // UI State
+  currentView: ViewType;
+  sidebarCollapsed: boolean;
+  isFocusMode: boolean;
+  isPreviewMode: boolean;
+  zoomLevel: number;
+  
+  // Document State
+  currentDocument: string | null;
+  documentContent: string;
+  isDocumentModified: boolean;
+  
+  // Preferences
+  theme: 'light' | 'dark' | 'system';
+  fontSize: number;
+  lineHeight: number;
+  fontFamily: string;
+  
+  // Actions
+  setCurrentView: (view: ViewType) => void;
+  toggleSidebar: () => void;
+  toggleFocusMode: () => void;
+  togglePreviewMode: () => void;
+  setZoomLevel: (level: number) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetZoom: () => void;
+  
+  setCurrentDocument: (path: string | null) => void;
+  setDocumentContent: (content: string) => void;
+  setDocumentModified: (modified: boolean) => void;
+  
+  setTheme: (theme: 'light' | 'dark' | 'system') => void;
+  setFontSize: (size: number) => void;
+  setLineHeight: (height: number) => void;
+  setFontFamily: (family: string) => void;
+}
+
+export const useAppStore = create<AppState>()(
+  persist(
+    (set, get) => ({
+      // Initial state
+      currentView: 'editor',
+      sidebarCollapsed: false,
+      isFocusMode: false,
+      isPreviewMode: false,
+      zoomLevel: 100,
+      
+      currentDocument: null,
+      documentContent: '',
+      isDocumentModified: false,
+      
+      theme: 'system',
+      fontSize: 16,
+      lineHeight: 1.6,
+      fontFamily: 'SF Mono',
+      
+      // Actions
+      setCurrentView: (view) => set({ currentView: view }),
+      
+      toggleSidebar: () => set((state) => ({ 
+        sidebarCollapsed: !state.sidebarCollapsed 
+      })),
+      
+      toggleFocusMode: () => set((state) => ({ 
+        isFocusMode: !state.isFocusMode 
+      })),
+      
+      togglePreviewMode: () => set((state) => ({ 
+        isPreviewMode: !state.isPreviewMode 
+      })),
+      
+      setZoomLevel: (level) => {
+        const clampedLevel = Math.max(50, Math.min(200, level));
+        set({ zoomLevel: clampedLevel });
+      },
+      
+      zoomIn: () => {
+        const currentLevel = get().zoomLevel;
+        const newLevel = Math.min(200, currentLevel + 10);
+        set({ zoomLevel: newLevel });
+      },
+      
+      zoomOut: () => {
+        const currentLevel = get().zoomLevel;
+        const newLevel = Math.max(50, currentLevel - 10);
+        set({ zoomLevel: newLevel });
+      },
+      
+      resetZoom: () => set({ zoomLevel: 100 }),
+      
+      setCurrentDocument: (path) => set({ currentDocument: path }),
+      
+      setDocumentContent: (content) => set({ 
+        documentContent: content,
+        isDocumentModified: true
+      }),
+      
+      setDocumentModified: (modified) => set({ 
+        isDocumentModified: modified 
+      }),
+      
+      setTheme: (theme) => set({ theme }),
+      setFontSize: (fontSize) => set({ fontSize }),
+      setLineHeight: (lineHeight) => set({ lineHeight }),
+      setFontFamily: (fontFamily) => set({ fontFamily }),
+    }),
+    {
+      name: 'lexor-app-store',
+      partialize: (state) => ({
+        // Only persist preferences, not UI state
+        theme: state.theme,
+        fontSize: state.fontSize,
+        lineHeight: state.lineHeight,
+        fontFamily: state.fontFamily,
+        sidebarCollapsed: state.sidebarCollapsed,
+      }),
+    }
+  )
+);
