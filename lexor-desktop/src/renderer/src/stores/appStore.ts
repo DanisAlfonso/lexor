@@ -29,6 +29,12 @@ export interface AppState {
   rootFolder: string | null;
   folderContents: FileItem[];
   isLoadingFolder: boolean;
+  selectedItem: FileItem | null;
+
+  // Lexor Library State
+  libraryFolder: string | null;
+  isLibraryInitialized: boolean;
+  isCurrentFolderLibrary: boolean;
   
   // Preferences
   theme: 'light' | 'dark' | 'system';
@@ -54,7 +60,15 @@ export interface AppState {
   setRootFolder: (path: string | null) => void;
   setFolderContents: (contents: FileItem[]) => void;
   setLoadingFolder: (loading: boolean) => void;
+  setSelectedItem: (item: FileItem | null) => void;
   loadFolderContents: (folderPath: string) => Promise<void>;
+  focusEditor: () => void;
+
+  setLibraryFolder: (path: string | null) => void;
+  setLibraryInitialized: (initialized: boolean) => void;
+  initializeLexorLibrary: () => Promise<string>;
+  openLexorLibrary: () => Promise<void>;
+  isPathInLibrary: (path: string) => boolean;
   
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setFontSize: (size: number) => void;
@@ -80,6 +94,11 @@ export const useAppStore = create<AppState>()(
       rootFolder: null,
       folderContents: [],
       isLoadingFolder: false,
+      selectedItem: null,
+
+      libraryFolder: null,
+      isLibraryInitialized: false,
+      isCurrentFolderLibrary: false,
       
       theme: 'system',
       fontSize: 16,
@@ -146,6 +165,7 @@ export const useAppStore = create<AppState>()(
       setRootFolder: (path) => set({ rootFolder: path }),
       setFolderContents: (contents) => set({ folderContents: contents }),
       setLoadingFolder: (loading) => set({ isLoadingFolder: loading }),
+      setSelectedItem: (item) => set({ selectedItem: item }),
       
       loadFolderContents: async (folderPath: string) => {
         set({ isLoadingFolder: true });
@@ -153,10 +173,12 @@ export const useAppStore = create<AppState>()(
           if (window.electronAPI?.folder?.readDirectory) {
             const contents = await window.electronAPI.folder.readDirectory(folderPath);
             const state = get();
+            const isLibraryPath = state.libraryFolder && folderPath.startsWith(state.libraryFolder);
             set({ 
               folderContents: contents,
               currentFolder: folderPath,
               rootFolder: state.rootFolder || folderPath, // Set root folder on first load
+              isCurrentFolderLibrary: isLibraryPath,
               isLoadingFolder: false 
             });
           }
@@ -168,21 +190,75 @@ export const useAppStore = create<AppState>()(
           });
         }
       },
+
+      setLibraryFolder: (path) => set({ libraryFolder: path }),
+      setLibraryInitialized: (initialized) => set({ isLibraryInitialized: initialized }),
+
+      initializeLexorLibrary: async () => {
+        try {
+          // Get default library path
+          const defaultLibraryPath = await window.electronAPI?.library?.getDefaultPath();
+          if (!defaultLibraryPath) {
+            throw new Error('Failed to get default library path');
+          }
+
+          // Create library folder if it doesn't exist
+          const libraryPath = await window.electronAPI?.library?.initialize(defaultLibraryPath);
+          if (!libraryPath) {
+            throw new Error('Failed to initialize library');
+          }
+
+          set({ 
+            libraryFolder: libraryPath,
+            isLibraryInitialized: true 
+          });
+
+          return libraryPath;
+        } catch (error) {
+          console.error('Failed to initialize Lexor Library:', error);
+          throw error;
+        }
+      },
+
+      openLexorLibrary: async () => {
+        const state = get();
+        if (!state.libraryFolder) {
+          await get().initializeLexorLibrary();
+        }
+        
+        if (state.libraryFolder) {
+          // Set root folder to library when opening library
+          set({ rootFolder: state.libraryFolder });
+          await get().loadFolderContents(state.libraryFolder);
+        }
+      },
+
+      isPathInLibrary: (path: string) => {
+        const state = get();
+        return state.libraryFolder ? path.startsWith(state.libraryFolder) : false;
+      },
       
       setTheme: (theme) => set({ theme }),
       setFontSize: (fontSize) => set({ fontSize }),
       setLineHeight: (lineHeight) => set({ lineHeight }),
       setFontFamily: (fontFamily) => set({ fontFamily }),
+      
+      focusEditor: () => {
+        // Dispatch a custom event that the editor can listen to
+        window.dispatchEvent(new CustomEvent('focusEditor'));
+      },
     }),
     {
       name: 'lexor-app-store',
       partialize: (state) => ({
-        // Only persist preferences, not UI state
+        // Only persist preferences and library settings, not UI state
         theme: state.theme,
         fontSize: state.fontSize,
         lineHeight: state.lineHeight,
         fontFamily: state.fontFamily,
         sidebarCollapsed: state.sidebarCollapsed,
+        libraryFolder: state.libraryFolder,
+        isLibraryInitialized: state.isLibraryInitialized,
       }),
     }
   )

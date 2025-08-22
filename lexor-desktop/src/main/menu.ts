@@ -1,5 +1,7 @@
 import { Menu, MenuItemConstructorOptions, app, BrowserWindow, dialog } from 'electron';
 
+let currentMenu: Menu | null = null;
+
 export function createMenu(): Menu {
   const isMac = process.platform === 'darwin';
 
@@ -46,6 +48,21 @@ export function createMenu(): Menu {
           accelerator: 'CmdOrCtrl+Shift+O',
           click: () => openFolder()
         },
+        { 
+          label: 'Open Lexor Library', 
+          accelerator: 'CmdOrCtrl+L',
+          click: () => openLexorLibrary()
+        },
+        { type: 'separator' },
+        { 
+          label: 'Import to Library...', 
+          click: () => importToLibrary()
+        },
+        { 
+          label: 'Add Folder to Library', 
+          accelerator: 'CmdOrCtrl+Shift+D',
+          click: () => addFolderToLibrary()
+        },
         { type: 'separator' },
         { 
           label: 'Save', 
@@ -90,6 +107,19 @@ export function createMenu(): Menu {
         { label: 'Copy', role: 'copy' },
         { label: 'Paste', role: 'paste' },
         { label: 'Select All', role: 'selectAll' },
+        { type: 'separator' },
+        { 
+          label: 'Rename', 
+          accelerator: 'F2',
+          enabled: false, // Will be updated dynamically
+          click: () => renameSelectedItem()
+        },
+        { 
+          label: 'Delete', 
+          accelerator: isMac ? 'Cmd+Backspace' : 'Delete',
+          enabled: false, // Will be updated dynamically
+          click: () => deleteSelectedItem()
+        },
         { type: 'separator' },
         { 
           label: 'Find', 
@@ -318,7 +348,26 @@ export function createMenu(): Menu {
     }
   ];
 
-  return Menu.buildFromTemplate(template as MenuItemConstructorOptions[]);
+  currentMenu = Menu.buildFromTemplate(template as MenuItemConstructorOptions[]);
+  return currentMenu;
+}
+
+// Update menu item states based on current context
+export function updateMenuState(hasSelectedFile: boolean, currentView: string): void {
+  if (!currentMenu) return;
+
+  // Only enable rename/delete when in editor view with a selected file
+  const shouldEnable = currentView === 'editor' && hasSelectedFile;
+
+  // Find and update the Edit menu items
+  const editMenu = currentMenu.items.find(item => item.label === 'Edit');
+  if (editMenu && editMenu.submenu) {
+    const renameItem = editMenu.submenu.items.find(item => item.label === 'Rename');
+    const deleteItem = editMenu.submenu.items.find(item => item.label === 'Delete');
+    
+    if (renameItem) renameItem.enabled = shouldEnable;
+    if (deleteItem) deleteItem.enabled = shouldEnable;
+  }
 }
 
 // Menu action handlers
@@ -386,6 +435,21 @@ function openFolder(): void {
   focusedWindow?.webContents.send('menu:open-folder');
 }
 
+function openLexorLibrary(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:open-lexor-library');
+}
+
+function importToLibrary(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:import-to-library');
+}
+
+function addFolderToLibrary(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:add-folder-to-library');
+}
+
 function saveDocument(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   focusedWindow?.webContents.send('menu:save-document');
@@ -419,6 +483,16 @@ function showFind(): void {
 function showFindReplace(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   focusedWindow?.webContents.send('menu:find-replace');
+}
+
+function renameSelectedItem(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:rename-selected');
+}
+
+function deleteSelectedItem(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:delete-selected');
 }
 
 function toggleFocusMode(): void {

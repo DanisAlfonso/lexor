@@ -11,8 +11,15 @@ import { useMenuHandlers } from './hooks/useMenuHandlers';
 import { clsx } from 'clsx';
 
 function App() {
-  const { currentView, isFocusMode, sidebarCollapsed, theme } = useAppStore();
-  const [isLoading, setIsLoading] = useState(false);
+  const { 
+    currentView, 
+    isFocusMode, 
+    sidebarCollapsed, 
+    theme,
+    isLibraryInitialized,
+    initializeLexorLibrary
+  } = useAppStore();
+  const [isLoading, setIsLoading] = useState(true);
 
   // Initialize the app
   useEffect(() => {
@@ -27,12 +34,22 @@ function App() {
           } catch (error) {
             console.warn('Failed to get app info:', error);
           }
+
+          // Initialize Lexor Library if not already initialized
+          if (!isLibraryInitialized) {
+            try {
+              await initializeLexorLibrary();
+              console.log('Lexor Library initialized');
+            } catch (error) {
+              console.warn('Failed to initialize Lexor Library:', error);
+            }
+          }
         } else {
           console.warn('electronAPI not available - running in browser mode');
         }
         
         // Always set loading to false after a short delay
-        setTimeout(() => setIsLoading(false), 100);
+        setTimeout(() => setIsLoading(false), 200);
       } catch (error) {
         console.error('Failed to initialize app:', error);
         setIsLoading(false);
@@ -40,7 +57,7 @@ function App() {
     };
 
     initializeApp();
-  }, []);
+  }, [isLibraryInitialized, initializeLexorLibrary]);
 
   // Set up menu handlers
   useMenuHandlers();

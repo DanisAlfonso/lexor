@@ -23,6 +23,10 @@ const electronAPI = {
     showSaveDialog: () => ipcRenderer.invoke('file:showSaveDialog'),
     readFile: (filePath: string) => ipcRenderer.invoke('file:readFile', filePath),
     writeFile: (filePath: string, content: string) => ipcRenderer.invoke('file:writeFile', filePath, content),
+    rename: (oldPath: string, newName: string) => ipcRenderer.invoke('file:rename', oldPath, newName),
+    delete: (filePath: string) => ipcRenderer.invoke('file:delete', filePath),
+    createFolder: (parentPath: string, folderName: string) => ipcRenderer.invoke('file:createFolder', parentPath, folderName),
+    createFile: (parentPath: string, fileName: string, content?: string) => ipcRenderer.invoke('file:createFile', parentPath, fileName, content),
   },
 
   // Folder operations
@@ -31,8 +35,18 @@ const electronAPI = {
     readDirectory: (folderPath: string) => ipcRenderer.invoke('folder:readDirectory', folderPath),
   },
 
-  // Menu event listeners
+  // Library operations
+  library: {
+    getDefaultPath: () => ipcRenderer.invoke('library:getDefaultPath'),
+    initialize: (libraryPath: string) => ipcRenderer.invoke('library:initialize', libraryPath),
+    selectNewPath: () => ipcRenderer.invoke('library:selectNewPath'),
+    importFiles: (libraryPath: string) => ipcRenderer.invoke('library:importFiles', libraryPath),
+  },
+
+  // Menu management
   menu: {
+    updateState: (hasSelectedFile: boolean, currentView: string) => 
+      ipcRenderer.send('menu:updateState', hasSelectedFile, currentView),
     onNewDocument: (callback: () => void) => {
       ipcRenderer.on('menu:new-document', callback);
       return () => ipcRenderer.removeListener('menu:new-document', callback);
@@ -44,6 +58,18 @@ const electronAPI = {
     onOpenFolder: (callback: () => void) => {
       ipcRenderer.on('menu:open-folder', callback);
       return () => ipcRenderer.removeListener('menu:open-folder', callback);
+    },
+    onOpenLexorLibrary: (callback: () => void) => {
+      ipcRenderer.on('menu:open-lexor-library', callback);
+      return () => ipcRenderer.removeListener('menu:open-lexor-library', callback);
+    },
+    onImportToLibrary: (callback: () => void) => {
+      ipcRenderer.on('menu:import-to-library', callback);
+      return () => ipcRenderer.removeListener('menu:import-to-library', callback);
+    },
+    onAddFolderToLibrary: (callback: () => void) => {
+      ipcRenderer.on('menu:add-folder-to-library', callback);
+      return () => ipcRenderer.removeListener('menu:add-folder-to-library', callback);
     },
     onSaveDocument: (callback: () => void) => {
       ipcRenderer.on('menu:save-document', callback);
@@ -72,6 +98,14 @@ const electronAPI = {
     onFindReplace: (callback: () => void) => {
       ipcRenderer.on('menu:find-replace', callback);
       return () => ipcRenderer.removeListener('menu:find-replace', callback);
+    },
+    onRenameSelected: (callback: () => void) => {
+      ipcRenderer.on('menu:rename-selected', callback);
+      return () => ipcRenderer.removeListener('menu:rename-selected', callback);
+    },
+    onDeleteSelected: (callback: () => void) => {
+      ipcRenderer.on('menu:delete-selected', callback);
+      return () => ipcRenderer.removeListener('menu:delete-selected', callback);
     },
     onToggleSidebar: (callback: () => void) => {
       ipcRenderer.on('menu:toggle-sidebar', callback);

@@ -15,17 +15,64 @@ export function useMenuHandlers() {
     setDocumentModified,
     loadFolderContents,
     setRootFolder,
+    openLexorLibrary,
+    libraryFolder,
+    selectedItem,
+    setSelectedItem,
+    currentFolder,
+    currentDocument,
+    focusEditor,
+    currentView,
   } = useAppStore();
+
+  // Update menu state when selection or view changes
+  useEffect(() => {
+    if (window.electronAPI?.menu?.updateState) {
+      const hasSelectedFile = selectedItem !== null;
+      window.electronAPI.menu.updateState(hasSelectedFile, currentView);
+    }
+  }, [selectedItem, currentView]);
 
   useEffect(() => {
     if (!window.electronAPI) return;
 
     // Document operations
-    const handleNewDocument = () => {
-      setDocumentContent('');
-      setCurrentDocument(null);
-      setDocumentModified(false);
-      setCurrentView('editor');
+    const handleNewDocument = async () => {
+      try {
+        if (libraryFolder) {
+          // Create a new document in the Lexor Library
+          const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+          const fileName = `Document-${timestamp}.md`;
+          const initialContent = '# New Document\n\n';
+          
+          const result = await window.electronAPI.file.createFile(libraryFolder, fileName, initialContent);
+          if (result?.success) {
+            // Open the newly created file
+            setDocumentContent(initialContent);
+            setCurrentDocument(result.filePath);
+            setDocumentModified(false);
+            setCurrentView('editor');
+            
+            // Navigate to library and refresh contents to show the new file
+            await loadFolderContents(libraryFolder);
+            
+            return;
+          }
+        }
+        
+        // Fallback to traditional new document if library not available
+        setDocumentContent('');
+        setCurrentDocument(null);
+        setDocumentModified(false);
+        setCurrentView('editor');
+      } catch (error) {
+        console.error('Failed to create new document in library:', error);
+        // Fallback to traditional new document
+        setDocumentContent('');
+        setCurrentDocument(null);
+        setDocumentModified(false);
+        setCurrentView('editor');
+      }
     };
 
     const handleOpenDocument = async () => {
@@ -55,6 +102,55 @@ export function useMenuHandlers() {
         }
       } catch (error) {
         console.error('Failed to open folder:', error);
+      }
+    };
+
+    const handleOpenLexorLibrary = async () => {
+      try {
+        await openLexorLibrary();
+      } catch (error) {
+        console.error('Failed to open Lexor Library:', error);
+      }
+    };
+
+    const handleImportToLibrary = async () => {
+      try {
+        if (!libraryFolder) {
+          console.warn('Library folder not set');
+          return;
+        }
+
+        const result = await window.electronAPI.library.importFiles(libraryFolder);
+        
+        if (result.success) {
+          console.log(`Successfully imported ${result.count} files to library`);
+          // Refresh library contents if currently viewing library
+          await loadFolderContents(libraryFolder);
+        } else if (result.errors.length > 0) {
+          console.error('Import errors:', result.errors);
+        }
+      } catch (error) {
+        console.error('Failed to import to library:', error);
+      }
+    };
+
+    const handleAddFolderToLibrary = async () => {
+      try {
+        if (!libraryFolder) {
+          console.warn('Library folder not set');
+          return;
+        }
+
+        const folderName = prompt('Enter folder name:');
+        if (!folderName?.trim()) return;
+
+        const result = await window.electronAPI.file.createFolder(libraryFolder, folderName);
+        if (result?.success) {
+          // Navigate to the library and refresh contents
+          await loadFolderContents(libraryFolder);
+        }
+      } catch (error) {
+        console.error('Failed to create folder in library:', error);
       }
     };
 
@@ -143,11 +239,63 @@ export function useMenuHandlers() {
       console.log('Keyboard shortcuts not implemented yet');
     };
 
+    const handleRenameSelected = () => {
+      if (!selectedItem) {
+        console.warn('No item selected for rename');
+        return;
+      }
+
+      // Dispatch custom event to trigger inline editing in FolderBrowser
+      window.dispatchEvent(new CustomEvent('renameSelectedFile'));
+    };
+
+    const handleDeleteSelected = async () => {
+      if (!selectedItem) {
+        console.warn('No item selected for delete');
+        return;
+      }
+
+      const confirmMessage = selectedItem.isDirectory 
+        ? `Delete folder "${selectedItem.name}" and all its contents?`
+        : `Delete file "${selectedItem.name}"?`;
+        
+      if (!confirm(confirmMessage)) return;
+
+      try {
+        const result = await window.electronAPI.file.delete(selectedItem.path);
+        if (result?.success) {
+          // Check if the deleted item affects the currently open document
+          if (currentDocument && (
+            currentDocument === selectedItem.path || // Direct file match
+            (selectedItem.isDirectory && currentDocument.startsWith(selectedItem.path + '/')) // File is inside deleted folder
+          )) {
+            // Clear the editor since the file no longer exists
+            setCurrentDocument(null);
+            setDocumentContent('');
+            setDocumentModified(false);
+            // Focus the editor so user can continue typing
+            setTimeout(() => focusEditor(), 100);
+          }
+          
+          // Refresh folder contents and clear selection
+          if (currentFolder) {
+            await loadFolderContents(currentFolder);
+          }
+          setSelectedItem(null);
+        }
+      } catch (error) {
+        console.error('Failed to delete item:', error);
+      }
+    };
+
     // Register menu handlers
     const unsubscribers = [
       window.electronAPI.menu.onNewDocument(handleNewDocument),
       window.electronAPI.menu.onOpenDocument(handleOpenDocument),
       window.electronAPI.menu.onOpenFolder(handleOpenFolder),
+      window.electronAPI.menu.onOpenLexorLibrary(handleOpenLexorLibrary),
+      window.electronAPI.menu.onImportToLibrary(handleImportToLibrary),
+      window.electronAPI.menu.onAddFolderToLibrary(handleAddFolderToLibrary),
       window.electronAPI.menu.onSaveDocument(handleSaveDocument),
       window.electronAPI.menu.onSaveDocumentAs(handleSaveDocumentAs),
       window.electronAPI.menu.onExportHTML(handleExportHTML),
@@ -155,6 +303,8 @@ export function useMenuHandlers() {
       window.electronAPI.menu.onPreferences(handlePreferences),
       window.electronAPI.menu.onFind(handleFind),
       window.electronAPI.menu.onFindReplace(handleFindReplace),
+      window.electronAPI.menu.onRenameSelected(handleRenameSelected),
+      window.electronAPI.menu.onDeleteSelected(handleDeleteSelected),
       window.electronAPI.menu.onToggleSidebar(toggleSidebar),
       window.electronAPI.menu.onToggleFocusMode(toggleFocusMode),
       window.electronAPI.menu.onTogglePreview(togglePreviewMode),
@@ -186,5 +336,13 @@ export function useMenuHandlers() {
     setDocumentModified,
     loadFolderContents,
     setRootFolder,
+    openLexorLibrary,
+    libraryFolder,
+    selectedItem,
+    setSelectedItem,
+    currentFolder,
+    currentDocument,
+    focusEditor,
+    currentView,
   ]);
 }

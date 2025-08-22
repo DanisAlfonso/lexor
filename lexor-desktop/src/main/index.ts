@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, ipcMain, shell } from 'electron';
 import { join } from 'path';
 import { autoUpdater } from 'electron-updater';
-import { createMenu } from './menu';
+import { createMenu, updateMenuState } from './menu';
 import { WindowManager } from './windows';
 
 class LexorApp {
@@ -226,6 +226,183 @@ class LexorApp {
         console.error('Error reading directory:', error);
         return [];
       }
+    });
+
+    // Library operations
+    ipcMain.handle('library:getDefaultPath', async () => {
+      const { homedir } = await import('os');
+      const { join } = await import('path');
+      return join(homedir(), 'Documents', 'Lexor Library');
+    });
+
+    ipcMain.handle('library:initialize', async (_, libraryPath: string) => {
+      const { mkdir, access, writeFile } = await import('fs/promises');
+      const { join } = await import('path');
+      
+      try {
+        // Check if directory already exists
+        try {
+          await access(libraryPath);
+        } catch {
+          // Directory doesn't exist, create it
+          await mkdir(libraryPath, { recursive: true });
+          
+          // Create welcome file
+          const welcomeContent = `# Welcome to Your Lexor Library
+
+This is your personal Lexor Library - a special folder that syncs between your devices.
+
+## Getting Started
+
+- Create and edit markdown files here
+- They will automatically sync to your mobile device
+- Use subfolders to organize your content
+- Generate flashcards from your notes
+
+## Tips
+
+- Keep your most important documents in this library
+- Use meaningful folder names for organization  
+- The library stays in sync across all your devices
+
+Happy writing!
+`;
+          
+          await writeFile(join(libraryPath, 'Welcome.md'), welcomeContent, 'utf-8');
+        }
+        
+        return libraryPath;
+      } catch (error) {
+        console.error('Error initializing library:', error);
+        return null;
+      }
+    });
+
+    ipcMain.handle('library:selectNewPath', async () => {
+      const { dialog } = await import('electron');
+      const result = await dialog.showOpenDialog({
+        properties: ['openDirectory', 'createDirectory'],
+        title: 'Select Lexor Library Location'
+      });
+      return result;
+    });
+
+    ipcMain.handle('library:importFiles', async (_, libraryPath: string) => {
+      const { dialog } = await import('electron');
+      const { copyFile, cp, stat } = await import('fs/promises');
+      const { join, extname, basename } = await import('path');
+      
+      try {
+        const result = await dialog.showOpenDialog({
+          properties: ['openFile', 'openDirectory', 'multiSelections'],
+          filters: [
+            { name: 'Markdown Files', extensions: ['md', 'markdown'] },
+            { name: 'Text Files', extensions: ['txt'] },
+            { name: 'All Files', extensions: ['*'] }
+          ],
+          title: 'Select Files or Folders to Import to Library'
+        });
+
+        if (result.canceled || !result.filePaths.length) {
+          return { success: false, count: 0, errors: [] };
+        }
+
+        const errors = [];
+        let imported = 0;
+
+        for (const sourcePath of result.filePaths) {
+          try {
+            const sourceStats = await stat(sourcePath);
+            const sourceName = basename(sourcePath);
+            const destinationPath = join(libraryPath, sourceName);
+            
+            if (sourceStats.isDirectory()) {
+              // Import entire folder recursively
+              await cp(sourcePath, destinationPath, { recursive: true });
+              imported++;
+            } else {
+              // Import single file
+              await copyFile(sourcePath, destinationPath);
+              imported++;
+            }
+          } catch (error: any) {
+            errors.push(`Failed to import ${basename(sourcePath)}: ${error.message}`);
+          }
+        }
+
+        return {
+          success: errors.length === 0,
+          count: imported,
+          errors
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          count: 0,
+          errors: [`Import failed: ${error.message}`]
+        };
+      }
+    });
+
+    // File management operations
+    ipcMain.handle('file:rename', async (_, oldPath: string, newName: string) => {
+      const { rename } = await import('fs/promises');
+      const { join, dirname } = await import('path');
+      
+      try {
+        const newPath = join(dirname(oldPath), newName);
+        await rename(oldPath, newPath);
+        return { success: true, newPath };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('file:delete', async (_, filePath: string) => {
+      const { unlink, rmdir, stat } = await import('fs/promises');
+      
+      try {
+        const stats = await stat(filePath);
+        if (stats.isDirectory()) {
+          await rmdir(filePath, { recursive: true });
+        } else {
+          await unlink(filePath);
+        }
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('file:createFolder', async (_, parentPath: string, folderName: string) => {
+      const { mkdir } = await import('fs/promises');
+      const { join } = await import('path');
+      
+      try {
+        const folderPath = join(parentPath, folderName);
+        await mkdir(folderPath);
+        return { success: true, folderPath };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('file:createFile', async (_, parentPath: string, fileName: string, content = '') => {
+      const { writeFile } = await import('fs/promises');
+      const { join } = await import('path');
+      
+      try {
+        const filePath = join(parentPath, fileName);
+        await writeFile(filePath, content, 'utf-8');
+        return { success: true, filePath };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    // Menu state management
+    ipcMain.on('menu:updateState', (_, hasSelectedFile: boolean, currentView: string) => {
+      updateMenuState(hasSelectedFile, currentView);
     });
   }
 }

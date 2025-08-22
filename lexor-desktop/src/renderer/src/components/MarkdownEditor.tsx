@@ -126,6 +126,18 @@ export function MarkdownEditor() {
     }
   }, [location.pathname]);
 
+  // Listen for focus editor events from the app store
+  useEffect(() => {
+    const handleFocusEditor = () => {
+      if (editorRef.current?.view) {
+        editorRef.current.view.focus();
+      }
+    };
+
+    window.addEventListener('focusEditor', handleFocusEditor);
+    return () => window.removeEventListener('focusEditor', handleFocusEditor);
+  }, []);
+
   // Handle content change
   const handleEditorChange = (value: string) => {
     setDocumentContent(value);
