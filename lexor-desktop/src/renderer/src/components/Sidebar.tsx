@@ -4,9 +4,7 @@ import {
   DocumentTextIcon, 
   AcademicCapIcon, 
   ChartBarIcon, 
-  Cog6ToothIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon
+  Cog6ToothIcon
 } from '@heroicons/react/24/outline';
 import { clsx } from 'clsx';
 
@@ -25,8 +23,8 @@ export function Sidebar() {
 
   return (
     <div className={clsx(
-      'fixed left-0 top-0 h-full transition-all duration-300 z-10',
-      sidebarCollapsed ? 'w-16' : 'w-64',
+      'fixed left-0 top-0 h-full transition-all duration-300 z-10 w-64',
+      sidebarCollapsed ? '-translate-x-full' : 'translate-x-0',
       // Account for macOS title bar
       window.electronAPI?.platform.isMac ? 'pt-12' : 'pt-0',
       // Theme colors
@@ -35,34 +33,6 @@ export function Sidebar() {
         : 'bg-white border-gray-200 text-gray-900',
       'border-r'
     )}>
-      {/* Sidebar header */}
-      <div className={clsx(
-        "p-4 border-b",
-        isDarkMode ? "border-kanagawa-ink4" : "border-gray-200"
-      )}>
-        <div className="flex items-center justify-between">
-          {!sidebarCollapsed && (
-            <h1 className="text-lg font-semibold">
-              Lexor
-            </h1>
-          )}
-          <button
-            onClick={toggleSidebar}
-            className={clsx(
-              "p-1.5 rounded-md transition-colors",
-              isDarkMode 
-                ? "hover:bg-kanagawa-ink4 text-kanagawa-oldwhite" 
-                : "hover:bg-gray-100 text-gray-600"
-            )}
-          >
-            {sidebarCollapsed ? (
-              <ChevronRightIcon className="h-5 w-5" />
-            ) : (
-              <ChevronLeftIcon className="h-5 w-5" />
-            )}
-          </button>
-        </div>
-      </div>
 
       {/* Navigation */}
       <nav className="mt-4 px-2">
@@ -86,12 +56,9 @@ export function Sidebar() {
                         ? 'text-kanagawa-oldwhite'
                         : 'text-gray-700'
                   )}
-                  title={sidebarCollapsed ? item.label : undefined}
                 >
                   <Icon className="h-5 w-5 flex-shrink-0" />
-                  {!sidebarCollapsed && (
-                    <span className="ml-3">{item.label}</span>
-                  )}
+                  <span className="ml-3">{item.label}</span>
                 </button>
               </li>
             );
@@ -99,26 +66,24 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      {/* Recent documents (when expanded) */}
-      {!sidebarCollapsed && (
-        <div className="mt-8 px-4">
-          <h3 className={clsx(
-            "text-xs font-semibold uppercase tracking-wide mb-3",
+      {/* Recent documents */}
+      <div className="mt-8 px-4">
+        <h3 className={clsx(
+          "text-xs font-semibold uppercase tracking-wide mb-3",
+          isDarkMode ? "text-kanagawa-gray" : "text-gray-500"
+        )}>
+          Recent Documents
+        </h3>
+        <div className="space-y-1">
+          {/* TODO: Add recent documents list */}
+          <p className={clsx(
+            "text-sm italic",
             isDarkMode ? "text-kanagawa-gray" : "text-gray-500"
           )}>
-            Recent Documents
-          </h3>
-          <div className="space-y-1">
-            {/* TODO: Add recent documents list */}
-            <p className={clsx(
-              "text-sm italic",
-              isDarkMode ? "text-kanagawa-gray" : "text-gray-500"
-            )}>
-              No recent documents
-            </p>
-          </div>
+            No recent documents
+          </p>
         </div>
-      )}
+      </div>
     </div>
   );
 }

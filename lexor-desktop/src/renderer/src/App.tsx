@@ -65,18 +65,18 @@ function App() {
         "h-screen w-screen flex flex-col overflow-hidden",
         isDarkMode ? "bg-kanagawa-ink3 text-kanagawa-white" : "bg-gray-50 text-gray-900"
       )}>
-        {/* Custom title bar for macOS */}
-        <TitleBar />
+        {/* Custom title bar for macOS - hidden in focus mode */}
+        {!isFocusMode && <TitleBar />}
         
         <div className="flex flex-1 overflow-hidden">
-          {/* Sidebar */}
-          <Sidebar />
+          {/* Sidebar - hidden in focus mode */}
+          {!isFocusMode && <Sidebar />}
           
           {/* Main content area */}
           <div className={clsx(
             'flex-1 flex flex-col transition-all duration-300',
-            sidebarCollapsed ? 'ml-0' : 'ml-64',
-            isFocusMode && 'focus-mode'
+            !isFocusMode && (sidebarCollapsed ? 'ml-0' : 'ml-64'),
+            isFocusMode && 'ml-0' // Full width in focus mode
           )}>
             <Routes>
               <Route path="/" element={<MarkdownEditor />} />

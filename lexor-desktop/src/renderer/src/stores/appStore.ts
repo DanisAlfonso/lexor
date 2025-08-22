@@ -68,9 +68,20 @@ export const useAppStore = create<AppState>()(
         sidebarCollapsed: !state.sidebarCollapsed 
       })),
       
-      toggleFocusMode: () => set((state) => ({ 
-        isFocusMode: !state.isFocusMode 
-      })),
+      toggleFocusMode: () => {
+        const newFocusMode = !get().isFocusMode;
+        set({ isFocusMode: newFocusMode });
+        
+        // Communicate focus mode change to Electron main process
+        if (window.electronAPI && window.electronAPI.platform?.isMac) {
+          // Send focus mode state to main process for title bar handling
+          try {
+            window.electronAPI.window?.setFocusMode?.(newFocusMode);
+          } catch (error) {
+            console.warn('Failed to communicate focus mode to main process:', error);
+          }
+        }
+      },
       
       togglePreviewMode: () => set((state) => ({ 
         isPreviewMode: !state.isPreviewMode 

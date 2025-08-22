@@ -3,6 +3,7 @@ import { useAppStore } from '../stores/appStore';
 
 export function useMenuHandlers() {
   const {
+    toggleSidebar,
     toggleFocusMode,
     togglePreviewMode,
     zoomIn,
@@ -137,6 +138,7 @@ export function useMenuHandlers() {
       window.electronAPI.menu.onPreferences(handlePreferences),
       window.electronAPI.menu.onFind(handleFind),
       window.electronAPI.menu.onFindReplace(handleFindReplace),
+      window.electronAPI.menu.onToggleSidebar(toggleSidebar),
       window.electronAPI.menu.onToggleFocusMode(toggleFocusMode),
       window.electronAPI.menu.onTogglePreview(togglePreviewMode),
       window.electronAPI.menu.onZoomIn(zoomIn),
@@ -155,6 +157,7 @@ export function useMenuHandlers() {
       unsubscribers.forEach(unsub => unsub());
     };
   }, [
+    toggleSidebar,
     toggleFocusMode,
     togglePreviewMode,
     zoomIn,

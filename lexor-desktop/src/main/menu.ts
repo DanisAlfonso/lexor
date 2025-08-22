@@ -104,6 +104,12 @@ export function createMenu(): Menu {
       label: 'View',
       submenu: [
         { 
+          label: 'Toggle Sidebar', 
+          accelerator: 'Option+Cmd+S',
+          click: () => toggleSidebar()
+        },
+        { type: 'separator' },
+        { 
           label: 'Focus Mode', 
           accelerator: 'CmdOrCtrl+Shift+F',
           type: 'checkbox',
@@ -408,6 +414,11 @@ function showFindReplace(): void {
 function toggleFocusMode(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   focusedWindow?.webContents.send('menu:toggle-focus-mode');
+}
+
+function toggleSidebar(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:toggle-sidebar');
 }
 
 function togglePreview(): void {

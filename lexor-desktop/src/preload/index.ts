@@ -14,6 +14,7 @@ const electronAPI = {
     minimize: () => ipcRenderer.invoke('window:minimize'),
     maximize: () => ipcRenderer.invoke('window:maximize'),
     close: () => ipcRenderer.invoke('window:close'),
+    setFocusMode: (focusMode: boolean) => ipcRenderer.send('window:set-focus-mode', focusMode),
   },
 
   // File operations
@@ -61,6 +62,10 @@ const electronAPI = {
     onFindReplace: (callback: () => void) => {
       ipcRenderer.on('menu:find-replace', callback);
       return () => ipcRenderer.removeListener('menu:find-replace', callback);
+    },
+    onToggleSidebar: (callback: () => void) => {
+      ipcRenderer.on('menu:toggle-sidebar', callback);
+      return () => ipcRenderer.removeListener('menu:toggle-sidebar', callback);
     },
     onToggleFocusMode: (callback: () => void) => {
       ipcRenderer.on('menu:toggle-focus-mode', callback);

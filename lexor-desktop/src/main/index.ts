@@ -118,6 +118,20 @@ class LexorApp {
       window?.close();
     });
 
+    // Focus mode handling (macOS only)
+    ipcMain.on('window:set-focus-mode', (event, focusMode: boolean) => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (!window || process.platform !== 'darwin') return;
+      
+      if (focusMode) {
+        // Hide traffic lights and title bar for true focus mode
+        window.setWindowButtonVisibility(false);
+      } else {
+        // Show traffic lights and title bar
+        window.setWindowButtonVisibility(true);
+      }
+    });
+
     // File operations
     ipcMain.handle('file:showOpenDialog', async () => {
       const { dialog } = await import('electron');
