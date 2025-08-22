@@ -36,6 +36,11 @@ export interface AppState {
   isLibraryInitialized: boolean;
   isCurrentFolderLibrary: boolean;
   
+  // User Experience State
+  isFirstTimeUser: boolean;
+  lastOpenedDocument: string | null;
+  hasLaunchedBefore: boolean;
+  
   // Preferences
   theme: 'light' | 'dark' | 'system';
   fontSize: number;
@@ -70,6 +75,14 @@ export interface AppState {
   openLexorLibrary: () => Promise<void>;
   isPathInLibrary: (path: string) => boolean;
   
+  setFirstTimeUser: (isFirstTime: boolean) => void;
+  setLastOpenedDocument: (path: string | null) => void;
+  setHasLaunchedBefore: (launched: boolean) => void;
+  autoOpenAppropriateDocument: () => Promise<void>;
+  openDocumentAndNavigate: (filePath: string) => Promise<void>;
+  ensureWelcomeFileAndOpen: (welcomePath: string) => Promise<void>;
+  createWelcomeFile: (welcomePath: string) => Promise<boolean>;
+  
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setFontSize: (size: number) => void;
   setLineHeight: (height: number) => void;
@@ -99,6 +112,10 @@ export const useAppStore = create<AppState>()(
       libraryFolder: null,
       isLibraryInitialized: false,
       isCurrentFolderLibrary: false,
+      
+      isFirstTimeUser: true,
+      lastOpenedDocument: null,
+      hasLaunchedBefore: false,
       
       theme: 'system',
       fontSize: 16,
@@ -150,7 +167,13 @@ export const useAppStore = create<AppState>()(
       
       resetZoom: () => set({ zoomLevel: 100 }),
       
-      setCurrentDocument: (path) => set({ currentDocument: path }),
+      setCurrentDocument: (path) => {
+        set({ currentDocument: path });
+        // Track last opened document when opening a file
+        if (path) {
+          get().setLastOpenedDocument(path);
+        }
+      },
       
       setDocumentContent: (content) => set({ 
         documentContent: content,
@@ -237,6 +260,166 @@ export const useAppStore = create<AppState>()(
         const state = get();
         return state.libraryFolder ? path.startsWith(state.libraryFolder) : false;
       },
+
+      setFirstTimeUser: (isFirstTime) => set({ isFirstTimeUser: isFirstTime }),
+      setLastOpenedDocument: (path) => set({ lastOpenedDocument: path }),
+      setHasLaunchedBefore: (launched) => set({ hasLaunchedBefore: launched }),
+
+      autoOpenAppropriateDocument: async () => {
+        const state = get();
+        const { libraryFolder, isFirstTimeUser, lastOpenedDocument, hasLaunchedBefore } = state;
+        
+        try {
+          // Mark as launched to prevent this from running again
+          if (!hasLaunchedBefore) {
+            get().setHasLaunchedBefore(true);
+            get().setFirstTimeUser(true);
+          }
+
+          // Check if we have a library
+          if (!libraryFolder) {
+            console.log('No library folder available');
+            return;
+          }
+
+          const welcomePath = `${libraryFolder}/Welcome.md`;
+
+          // First-time users: Always open Welcome.md
+          if (isFirstTimeUser || !hasLaunchedBefore) {
+            console.log('Opening Welcome.md for first-time user');
+            await get().ensureWelcomeFileAndOpen(welcomePath);
+            get().setFirstTimeUser(false);
+            return;
+          }
+
+          // Returning users: Try to open last document
+          if (lastOpenedDocument) {
+            try {
+              // Check if last document still exists
+              const content = await window.electronAPI?.file?.readFile(lastOpenedDocument);
+              if (content !== undefined) {
+                console.log('Opening last document:', lastOpenedDocument);
+                await get().openDocumentAndNavigate(lastOpenedDocument);
+                return;
+              }
+            } catch (error) {
+              console.log('Last document no longer exists:', lastOpenedDocument);
+            }
+          }
+
+          // Fallback: Check if library is empty, if so open Welcome.md
+          await get().loadFolderContents(libraryFolder);
+          const { folderContents } = get();
+          
+          if (folderContents.length === 0) { 
+            // Completely empty library - recreate Welcome.md
+            console.log('Library is empty, creating and opening Welcome.md');
+            await get().ensureWelcomeFileAndOpen(welcomePath);
+          } else if (folderContents.length === 1 && folderContents[0].name !== 'Welcome.md') {
+            // Only one file and it's not Welcome.md - open that file
+            console.log('Opening single file in library:', folderContents[0].path);
+            await get().openDocumentAndNavigate(folderContents[0].path);
+          } else {
+            // Library has content, check if Welcome.md exists
+            const welcomeExists = folderContents.some(item => item.name === 'Welcome.md');
+            if (welcomeExists) {
+              console.log('Opening Welcome.md from populated library');
+              await get().openDocumentAndNavigate(welcomePath);
+            } else {
+              // No Welcome.md but library has content - open library view
+              console.log('Opening library view (no Welcome.md)');
+              await get().openLexorLibrary();
+            }
+          }
+        } catch (error) {
+          console.error('Error in autoOpenAppropriateDocument:', error);
+        }
+      },
+
+      openDocumentAndNavigate: async (filePath: string) => {
+        try {
+          // Set the current document
+          get().setCurrentDocument(filePath);
+          
+          // Read the file content
+          const content = await window.electronAPI?.file?.readFile(filePath);
+          if (content !== undefined) {
+            get().setDocumentContent(content);
+            get().setDocumentModified(false);
+          }
+          
+          // Navigate to editor view
+          get().setCurrentView('editor');
+          
+          // Also load the library folder to show in sidebar
+          const state = get();
+          if (state.libraryFolder && state.isPathInLibrary(filePath)) {
+            await get().openLexorLibrary();
+          }
+        } catch (error) {
+          console.error('Failed to open document:', filePath, error);
+        }
+      },
+
+      ensureWelcomeFileAndOpen: async (welcomePath: string) => {
+        try {
+          // Try to open existing Welcome.md
+          const content = await window.electronAPI?.file?.readFile(welcomePath);
+          if (content !== undefined) {
+            // Welcome.md exists, open it
+            await get().openDocumentAndNavigate(welcomePath);
+            return;
+          }
+        } catch (error) {
+          // Welcome.md doesn't exist, create it
+          console.log('Welcome.md not found, creating new one');
+        }
+        
+        // Create Welcome.md and then open it
+        const created = await get().createWelcomeFile(welcomePath);
+        if (created) {
+          await get().openDocumentAndNavigate(welcomePath);
+        } else {
+          // Failed to create Welcome.md, fall back to library view or empty editor
+          const state = get();
+          if (state.libraryFolder) {
+            console.log('Failed to create Welcome.md, opening library view');
+            await get().openLexorLibrary();
+          } else {
+            console.log('Failed to create Welcome.md, staying in empty editor');
+          }
+        }
+      },
+
+      createWelcomeFile: async (welcomePath: string) => {
+        try {
+          const welcomeContent = `# Welcome to Your Lexor Library
+
+This is your personal Lexor Library - a special folder that syncs between your devices.
+
+## Getting Started
+
+- Create and edit markdown files here
+- They will automatically sync to your mobile device
+- Use subfolders to organize your content
+- Generate flashcards from your notes
+
+## Tips
+
+- Keep your most important documents in this library
+- Use meaningful folder names for organization  
+- The library stays in sync across all your devices
+
+Happy writing!
+`;
+          
+          const result = await window.electronAPI?.file?.writeFile(welcomePath, welcomeContent);
+          return result?.success || false;
+        } catch (error) {
+          console.error('Failed to create Welcome.md:', error);
+          return false;
+        }
+      },
       
       setTheme: (theme) => set({ theme }),
       setFontSize: (fontSize) => set({ fontSize }),
@@ -259,6 +442,9 @@ export const useAppStore = create<AppState>()(
         sidebarCollapsed: state.sidebarCollapsed,
         libraryFolder: state.libraryFolder,
         isLibraryInitialized: state.isLibraryInitialized,
+        lastOpenedDocument: state.lastOpenedDocument,
+        hasLaunchedBefore: state.hasLaunchedBefore,
+        isFirstTimeUser: state.isFirstTimeUser,
       }),
     }
   )

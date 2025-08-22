@@ -17,7 +17,8 @@ function App() {
     sidebarCollapsed, 
     theme,
     isLibraryInitialized,
-    initializeLexorLibrary
+    initializeLexorLibrary,
+    autoOpenAppropriateDocument
   } = useAppStore();
   const [isLoading, setIsLoading] = useState(true);
 
@@ -40,8 +41,18 @@ function App() {
             try {
               await initializeLexorLibrary();
               console.log('Lexor Library initialized');
+              
+              // Auto-open appropriate document after library initialization
+              await autoOpenAppropriateDocument();
             } catch (error) {
               console.warn('Failed to initialize Lexor Library:', error);
+            }
+          } else {
+            // Library already initialized, auto-open appropriate document
+            try {
+              await autoOpenAppropriateDocument();
+            } catch (error) {
+              console.warn('Failed to auto-open document:', error);
             }
           }
         } else {
@@ -57,7 +68,7 @@ function App() {
     };
 
     initializeApp();
-  }, [isLibraryInitialized, initializeLexorLibrary]);
+  }, [isLibraryInitialized, initializeLexorLibrary, autoOpenAppropriateDocument]);
 
   // Set up menu handlers
   useMenuHandlers();
