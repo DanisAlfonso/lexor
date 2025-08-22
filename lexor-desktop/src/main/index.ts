@@ -166,6 +166,67 @@ class LexorApp {
       const { writeFile } = await import('fs/promises');
       await writeFile(filePath, content, 'utf-8');
     });
+
+    // Folder operations
+    ipcMain.handle('folder:showOpenDialog', async () => {
+      const { dialog } = await import('electron');
+      const result = await dialog.showOpenDialog({
+        properties: ['openDirectory']
+      });
+      return result;
+    });
+
+    ipcMain.handle('folder:readDirectory', async (_, folderPath: string) => {
+      const { readdir, stat } = await import('fs/promises');
+      const { join, extname } = await import('path');
+      
+      try {
+        const items = await readdir(folderPath);
+        const fileList = [];
+        
+        for (const item of items) {
+          const fullPath = join(folderPath, item);
+          const stats = await stat(fullPath);
+          
+          // Skip hidden files and folders
+          if (item.startsWith('.')) continue;
+          
+          if (stats.isDirectory()) {
+            fileList.push({
+              name: item,
+              path: fullPath,
+              type: 'directory',
+              isDirectory: true
+            });
+          } else if (stats.isFile()) {
+            const ext = extname(item).toLowerCase();
+            // Only include markdown, text files, and some other common formats
+            const supportedExtensions = ['.md', '.markdown', '.txt', '.text'];
+            if (supportedExtensions.includes(ext)) {
+              fileList.push({
+                name: item,
+                path: fullPath,
+                type: 'file',
+                isDirectory: false,
+                extension: ext
+              });
+            }
+          }
+        }
+        
+        // Sort: directories first, then files, both alphabetically
+        fileList.sort((a, b) => {
+          if (a.isDirectory && !b.isDirectory) return -1;
+          if (!a.isDirectory && b.isDirectory) return 1;
+          return a.name.localeCompare(b.name);
+        });
+        
+        return fileList;
+      } catch (error) {
+        console.error('Error reading directory:', error);
+        return [];
+      }
+    });
   }
 }
 

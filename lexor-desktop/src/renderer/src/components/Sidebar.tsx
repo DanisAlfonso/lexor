@@ -8,6 +8,7 @@ import {
   Cog6ToothIcon
 } from '@heroicons/react/24/outline';
 import { clsx } from 'clsx';
+import { FolderBrowser } from './FolderBrowser';
 
 const navigationItems = [
   { id: 'editor' as ViewType, label: 'Editor', icon: DocumentTextIcon, path: '/editor' },
@@ -17,13 +18,42 @@ const navigationItems = [
 ];
 
 export function Sidebar() {
-  const { sidebarCollapsed, setCurrentView, toggleSidebar, theme } = useAppStore();
+  const { 
+    sidebarCollapsed, 
+    setCurrentView, 
+    toggleSidebar, 
+    theme,
+    setCurrentDocument,
+    setDocumentContent,
+    setDocumentModified,
+    currentFolder
+  } = useAppStore();
   const navigate = useNavigate();
   const location = useLocation();
   
   const handleNavigation = (item: typeof navigationItems[0]) => {
     setCurrentView(item.id);
     navigate(item.path);
+  };
+
+  const handleFileSelect = async (filePath: string) => {
+    try {
+      // Set the current document
+      setCurrentDocument(filePath);
+      
+      // Read the file content
+      const content = await window.electronAPI?.file?.readFile(filePath);
+      if (content !== undefined) {
+        setDocumentContent(content);
+        setDocumentModified(false);
+      }
+      
+      // Navigate to editor view
+      setCurrentView('editor');
+      navigate('/editor');
+    } catch (error) {
+      console.error('Failed to open file:', error);
+    }
   };
   
   // Determine if we should use dark mode
@@ -74,24 +104,19 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      {/* Recent documents */}
-      <div className="mt-8 px-4">
-        <h3 className={clsx(
-          "text-xs font-semibold uppercase tracking-wide mb-3",
-          isDarkMode ? "text-kanagawa-gray" : "text-gray-500"
-        )}>
-          Recent Documents
-        </h3>
-        <div className="space-y-1">
-          {/* TODO: Add recent documents list */}
-          <p className={clsx(
-            "text-sm italic",
+      {/* Folder Browser */}
+      {currentFolder && (
+        <div className="mt-8">
+          <h3 className={clsx(
+            "text-xs font-semibold uppercase tracking-wide mb-3 px-4",
             isDarkMode ? "text-kanagawa-gray" : "text-gray-500"
           )}>
-            No recent documents
-          </p>
+            Folder Browser
+          </h3>
+          <FolderBrowser onFileSelect={handleFileSelect} />
         </div>
-      </div>
+      )}
+
     </div>
   );
 }

@@ -41,6 +41,11 @@ export function createMenu(): Menu {
           accelerator: 'CmdOrCtrl+O',
           click: () => openDocument()
         },
+        { 
+          label: 'Open Folder...', 
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: () => openFolder()
+        },
         { type: 'separator' },
         { 
           label: 'Save', 
@@ -374,6 +379,11 @@ function createNewWindow(): void {
 function openDocument(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   focusedWindow?.webContents.send('menu:open-document');
+}
+
+function openFolder(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:open-folder');
 }
 
 function saveDocument(): void {

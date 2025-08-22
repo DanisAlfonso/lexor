@@ -13,6 +13,8 @@ export function useMenuHandlers() {
     setDocumentContent,
     setCurrentDocument,
     setDocumentModified,
+    loadFolderContents,
+    setRootFolder,
   } = useAppStore();
 
   useEffect(() => {
@@ -39,6 +41,20 @@ export function useMenuHandlers() {
         }
       } catch (error) {
         console.error('Failed to open document:', error);
+      }
+    };
+
+    const handleOpenFolder = async () => {
+      try {
+        const result = await window.electronAPI.folder.showOpenDialog();
+        if (!result.canceled && result.filePaths.length > 0) {
+          const folderPath = result.filePaths[0];
+          // Reset root folder when opening a new folder via menu
+          setRootFolder(folderPath);
+          await loadFolderContents(folderPath);
+        }
+      } catch (error) {
+        console.error('Failed to open folder:', error);
       }
     };
 
@@ -131,6 +147,7 @@ export function useMenuHandlers() {
     const unsubscribers = [
       window.electronAPI.menu.onNewDocument(handleNewDocument),
       window.electronAPI.menu.onOpenDocument(handleOpenDocument),
+      window.electronAPI.menu.onOpenFolder(handleOpenFolder),
       window.electronAPI.menu.onSaveDocument(handleSaveDocument),
       window.electronAPI.menu.onSaveDocumentAs(handleSaveDocumentAs),
       window.electronAPI.menu.onExportHTML(handleExportHTML),
@@ -167,5 +184,7 @@ export function useMenuHandlers() {
     setDocumentContent,
     setCurrentDocument,
     setDocumentModified,
+    loadFolderContents,
+    setRootFolder,
   ]);
 }

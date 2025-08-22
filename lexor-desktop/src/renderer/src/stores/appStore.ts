@@ -3,6 +3,14 @@ import { persist, subscribeWithSelector } from 'zustand/middleware';
 
 export type ViewType = 'editor' | 'flashcards' | 'study' | 'settings';
 
+export interface FileItem {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  isDirectory: boolean;
+  extension?: string;
+}
+
 export interface AppState {
   // UI State
   currentView: ViewType;
@@ -15,6 +23,12 @@ export interface AppState {
   currentDocument: string | null;
   documentContent: string;
   isDocumentModified: boolean;
+
+  // Folder State
+  currentFolder: string | null;
+  rootFolder: string | null;
+  folderContents: FileItem[];
+  isLoadingFolder: boolean;
   
   // Preferences
   theme: 'light' | 'dark' | 'system';
@@ -36,6 +50,12 @@ export interface AppState {
   setDocumentContent: (content: string) => void;
   setDocumentModified: (modified: boolean) => void;
   
+  setCurrentFolder: (path: string | null) => void;
+  setRootFolder: (path: string | null) => void;
+  setFolderContents: (contents: FileItem[]) => void;
+  setLoadingFolder: (loading: boolean) => void;
+  loadFolderContents: (folderPath: string) => Promise<void>;
+  
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setFontSize: (size: number) => void;
   setLineHeight: (height: number) => void;
@@ -55,6 +75,11 @@ export const useAppStore = create<AppState>()(
       currentDocument: null,
       documentContent: '',
       isDocumentModified: false,
+
+      currentFolder: null,
+      rootFolder: null,
+      folderContents: [],
+      isLoadingFolder: false,
       
       theme: 'system',
       fontSize: 16,
@@ -116,6 +141,33 @@ export const useAppStore = create<AppState>()(
       setDocumentModified: (modified) => set({ 
         isDocumentModified: modified 
       }),
+
+      setCurrentFolder: (path) => set({ currentFolder: path }),
+      setRootFolder: (path) => set({ rootFolder: path }),
+      setFolderContents: (contents) => set({ folderContents: contents }),
+      setLoadingFolder: (loading) => set({ isLoadingFolder: loading }),
+      
+      loadFolderContents: async (folderPath: string) => {
+        set({ isLoadingFolder: true });
+        try {
+          if (window.electronAPI?.folder?.readDirectory) {
+            const contents = await window.electronAPI.folder.readDirectory(folderPath);
+            const state = get();
+            set({ 
+              folderContents: contents,
+              currentFolder: folderPath,
+              rootFolder: state.rootFolder || folderPath, // Set root folder on first load
+              isLoadingFolder: false 
+            });
+          }
+        } catch (error) {
+          console.error('Failed to load folder contents:', error);
+          set({ 
+            folderContents: [],
+            isLoadingFolder: false 
+          });
+        }
+      },
       
       setTheme: (theme) => set({ theme }),
       setFontSize: (fontSize) => set({ fontSize }),

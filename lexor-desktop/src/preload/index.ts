@@ -25,6 +25,12 @@ const electronAPI = {
     writeFile: (filePath: string, content: string) => ipcRenderer.invoke('file:writeFile', filePath, content),
   },
 
+  // Folder operations
+  folder: {
+    showOpenDialog: () => ipcRenderer.invoke('folder:showOpenDialog'),
+    readDirectory: (folderPath: string) => ipcRenderer.invoke('folder:readDirectory', folderPath),
+  },
+
   // Menu event listeners
   menu: {
     onNewDocument: (callback: () => void) => {
@@ -34,6 +40,10 @@ const electronAPI = {
     onOpenDocument: (callback: () => void) => {
       ipcRenderer.on('menu:open-document', callback);
       return () => ipcRenderer.removeListener('menu:open-document', callback);
+    },
+    onOpenFolder: (callback: () => void) => {
+      ipcRenderer.on('menu:open-folder', callback);
+      return () => ipcRenderer.removeListener('menu:open-folder', callback);
     },
     onSaveDocument: (callback: () => void) => {
       ipcRenderer.on('menu:save-document', callback);
