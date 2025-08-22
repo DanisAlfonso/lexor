@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore, ViewType } from '../stores/appStore';
 import { 
   DocumentTextIcon, 
@@ -9,14 +10,21 @@ import {
 import { clsx } from 'clsx';
 
 const navigationItems = [
-  { id: 'editor' as ViewType, label: 'Editor', icon: DocumentTextIcon },
-  { id: 'flashcards' as ViewType, label: 'Flashcards', icon: AcademicCapIcon },
-  { id: 'study' as ViewType, label: 'Study', icon: ChartBarIcon },
-  { id: 'settings' as ViewType, label: 'Settings', icon: Cog6ToothIcon },
+  { id: 'editor' as ViewType, label: 'Editor', icon: DocumentTextIcon, path: '/editor' },
+  { id: 'flashcards' as ViewType, label: 'Flashcards', icon: AcademicCapIcon, path: '/flashcards' },
+  { id: 'study' as ViewType, label: 'Study', icon: ChartBarIcon, path: '/study' },
+  { id: 'settings' as ViewType, label: 'Settings', icon: Cog6ToothIcon, path: '/settings' },
 ];
 
 export function Sidebar() {
-  const { currentView, sidebarCollapsed, setCurrentView, toggleSidebar, theme } = useAppStore();
+  const { sidebarCollapsed, setCurrentView, toggleSidebar, theme } = useAppStore();
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  const handleNavigation = (item: typeof navigationItems[0]) => {
+    setCurrentView(item.id);
+    navigate(item.path);
+  };
   
   // Determine if we should use dark mode
   const isDarkMode = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -39,12 +47,12 @@ export function Sidebar() {
         <ul className="space-y-1">
           {navigationItems.map((item) => {
             const Icon = item.icon;
-            const isActive = currentView === item.id;
+            const isActive = location.pathname === item.path;
             
             return (
               <li key={item.id}>
                 <button
-                  onClick={() => setCurrentView(item.id)}
+                  onClick={() => handleNavigation(item)}
                   className={clsx(
                     'w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors',
                     isDarkMode ? 'hover:bg-kanagawa-ink4' : 'hover:bg-gray-100',

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { EditorView } from '@codemirror/view';
@@ -83,6 +84,7 @@ export function MarkdownEditor() {
   } = useAppStore();
 
   const editorRef = useRef<any>(null);
+  const location = useLocation();
 
   // State for system theme detection
   const [systemTheme, setSystemTheme] = useState(
@@ -110,6 +112,19 @@ export function MarkdownEditor() {
 
     return () => clearTimeout(timer);
   }, []);
+
+  // Auto-focus the editor when navigating to editor route
+  useEffect(() => {
+    if (location.pathname === '/editor' || location.pathname === '/') {
+      const timer = setTimeout(() => {
+        if (editorRef.current?.view) {
+          editorRef.current.view.focus();
+        }
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [location.pathname]);
 
   // Handle content change
   const handleEditorChange = (value: string) => {
@@ -140,7 +155,9 @@ export function MarkdownEditor() {
         caretColor: isDarkMode ? '#c4b28a' : '#393836',
         lineHeight: lineHeight.toString(),
         minHeight: '100%',
-        backgroundColor: isDarkMode ? '#1F1F28' : '#f9fafb' // kanagawa background
+        backgroundColor: isDarkMode ? '#1F1F28' : '#f9fafb', // kanagawa background
+        border: isDarkMode ? undefined : 'none !important',
+        outline: isDarkMode ? undefined : 'none !important' 
       },
       '&.cm-focused .cm-cursor': {
         borderLeftColor: isDarkMode ? '#c4b28a' : '#393836',
@@ -190,10 +207,6 @@ export function MarkdownEditor() {
       '&.cm-editor, .cm-editor': {
         border: isDarkMode ? undefined : 'none !important',
         outline: isDarkMode ? undefined : 'none !important'
-      },
-      '.cm-content': {
-        border: isDarkMode ? undefined : 'none !important',
-        outline: isDarkMode ? undefined : 'none !important' 
       }
     }, { dark: isDarkMode })
   ];
