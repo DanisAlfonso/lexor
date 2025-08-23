@@ -1,6 +1,13 @@
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
+import { LanguageSupport } from '@codemirror/language';
+import { LanguageDescription } from '@codemirror/language-data';
+import { javascript } from '@codemirror/lang-javascript';
+import { python } from '@codemirror/lang-python';
+import { html } from '@codemirror/lang-html';
+import { css } from '@codemirror/lang-css';
+import { json } from '@codemirror/lang-json';
 
 // Widget for rendering heading elements
 class HeadingWidget extends WidgetType {
@@ -38,14 +45,14 @@ class HeadingWidget extends WidgetType {
       display: 'block'
     };
 
-    // Size and weight based on heading level with much tighter spacing
+    // Size and weight based on heading level with minimal spacing
     const levelStyles = {
-      1: { fontSize: '2em', fontWeight: '700', marginTop: '0.3em', marginBottom: '0.1em' },
-      2: { fontSize: '1.75em', fontWeight: '600', marginTop: '0.25em', marginBottom: '0.08em' },
-      3: { fontSize: '1.5em', fontWeight: '600', marginTop: '0.2em', marginBottom: '0.06em' },
-      4: { fontSize: '1.25em', fontWeight: '500', marginTop: '0.15em', marginBottom: '0.05em' },
-      5: { fontSize: '1.1em', fontWeight: '500', marginTop: '0.1em', marginBottom: '0.03em' },
-      6: { fontSize: '1em', fontWeight: '500', marginTop: '0.08em', marginBottom: '0.02em' }
+      1: { fontSize: '2em', fontWeight: '700', marginTop: '0.1em', marginBottom: '0.05em' },
+      2: { fontSize: '1.75em', fontWeight: '600', marginTop: '0.08em', marginBottom: '0.04em' },
+      3: { fontSize: '1.5em', fontWeight: '600', marginTop: '0.06em', marginBottom: '0.03em' },
+      4: { fontSize: '1.25em', fontWeight: '500', marginTop: '0.05em', marginBottom: '0.02em' },
+      5: { fontSize: '1.1em', fontWeight: '500', marginTop: '0.03em', marginBottom: '0.01em' },
+      6: { fontSize: '1em', fontWeight: '500', marginTop: '0.02em', marginBottom: '0.01em' }
     };
 
     // Color based on theme
@@ -62,8 +69,8 @@ class HeadingWidget extends WidgetType {
 
   get estimatedHeight() {
     // Provide height estimates for better performance - much tighter spacing
-    const heights = { 1: 32, 2: 28, 3: 26, 4: 24, 5: 22, 6: 20 };
-    return heights[this.level as keyof typeof heights] || 20;
+    const heights = { 1: 24, 2: 22, 3: 20, 4: 18, 5: 16, 6: 16 };
+    return heights[this.level as keyof typeof heights] || 16;
   }
 
   ignoreEvent() {
@@ -173,21 +180,29 @@ class ListItemWidget extends WidgetType {
 
   toDOM() {
     const container = document.createElement('div');
-    container.style.display = 'flex';
-    container.style.alignItems = 'flex-start';
-    container.style.margin = '0.02em 0';
+    container.style.display = 'block';
+    container.style.position = 'relative';
+    container.style.margin = '0';
+    container.style.padding = '0';
     container.style.paddingLeft = `${this.level * 20}px`;
     container.style.lineHeight = this.lineHeight.toString();
+    container.style.height = 'auto';
+    container.style.minHeight = '0';
+    container.style.marginTop = '0';
+    container.style.marginBottom = '0';
+    
+    // Debug styling removed
     
     // Create bullet/number element
     const bullet = document.createElement('span');
     bullet.textContent = this.bulletStyle;
-    bullet.style.marginRight = '8px';
+    bullet.style.position = 'absolute';
+    bullet.style.left = `${this.level * 20 - 15}px`;
     bullet.style.color = this.isDark ? '#DCD7BA' : '#393836';
     bullet.style.fontWeight = this.isOrdered ? 'normal' : 'bold';
-    bullet.style.minWidth = this.isOrdered ? '20px' : '10px';
     bullet.style.userSelect = 'none';
-    bullet.style.textAlign = this.isOrdered ? 'right' : 'left';
+    bullet.style.width = '15px';
+    bullet.style.textAlign = this.isOrdered ? 'right' : 'center';
     
     // Create text element
     const textElement = document.createElement('span');
@@ -195,7 +210,7 @@ class ListItemWidget extends WidgetType {
     textElement.style.color = this.isDark ? '#DCD7BA' : '#393836';
     textElement.style.fontFamily = 'inherit';
     textElement.style.cursor = 'text';
-    textElement.style.flex = '1';
+    textElement.style.display = 'inline';
     
     container.appendChild(bullet);
     container.appendChild(textElement);
@@ -204,7 +219,287 @@ class ListItemWidget extends WidgetType {
   }
 
   get estimatedHeight() {
-    return 16; // Much tighter spacing for lists
+    // Use a much smaller estimated height to reduce spacing
+    const compactHeight = Math.ceil(this.lineHeight * 12); // Smaller base to reduce spacing
+    return Math.max(compactHeight, 10); // Minimum 10px height
+  }
+
+  ignoreEvent() {
+    return false; // Allow text editing
+  }
+}
+
+// Widget for rendering a group of consecutive list items
+class ListGroupWidget extends WidgetType {
+  constructor(
+    private items: any[],
+    private isDark: boolean,
+    private lineHeight: number
+  ) {
+    super();
+  }
+
+  eq(other: ListGroupWidget) {
+    return other.items.length === this.items.length && 
+           other.items.every((item, i) => 
+             item.text === this.items[i].text &&
+             item.level === this.items[i].level &&
+             item.isOrdered === this.items[i].isOrdered
+           ) &&
+           other.isDark === this.isDark &&
+           other.lineHeight === this.lineHeight;
+  }
+
+  toDOM() {
+    const container = document.createElement('div');
+    container.style.margin = '0';
+    container.style.padding = '0';
+    container.style.lineHeight = this.lineHeight.toString();
+    
+    // Debug styling removed - clean production appearance
+
+    // Render each list item with minimal spacing
+    this.items.forEach((item, index) => {
+      const itemDiv = document.createElement('div');
+      itemDiv.style.display = 'flex';
+      itemDiv.style.alignItems = 'flex-start';
+      itemDiv.style.margin = '0';
+      itemDiv.style.padding = '0';
+      itemDiv.style.paddingLeft = `${item.level * 20}px`;
+      itemDiv.style.lineHeight = this.lineHeight.toString();
+
+      // Create bullet/number
+      let bulletStyle: string;
+      if (item.isOrdered) {
+        bulletStyle = `${item.marker}.`;
+      } else {
+        const level = item.level;
+        bulletStyle = level === 0 ? '•' : level === 1 ? '◦' : '▪';
+      }
+
+      const bullet = document.createElement('span');
+      bullet.textContent = bulletStyle;
+      bullet.style.marginRight = '8px';
+      bullet.style.color = this.isDark ? '#DCD7BA' : '#393836';
+      bullet.style.fontWeight = item.isOrdered ? 'normal' : 'bold';
+      bullet.style.minWidth = item.isOrdered ? '20px' : '10px';
+      bullet.style.userSelect = 'none';
+      bullet.style.textAlign = item.isOrdered ? 'right' : 'left';
+
+      const text = document.createElement('span');
+      text.textContent = item.text;
+      text.style.color = this.isDark ? '#DCD7BA' : '#393836';
+      text.style.fontFamily = 'inherit';
+      text.style.cursor = 'text';
+      text.style.flex = '1';
+
+      itemDiv.appendChild(bullet);
+      itemDiv.appendChild(text);
+      container.appendChild(itemDiv);
+    });
+
+    return container;
+  }
+
+  get estimatedHeight() {
+    // Estimate height for all items combined with minimal spacing
+    const itemHeight = Math.ceil(this.lineHeight * 12);
+    return this.items.length * itemHeight;
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+}
+
+// Widget for rendering fenced code blocks
+class CodeBlockWidget extends WidgetType {
+  constructor(
+    private code: string,
+    private language: string,
+    private isDark: boolean,
+    private lineHeight: number
+  ) {
+    super();
+  }
+
+  eq(other: CodeBlockWidget) {
+    return other.code === this.code && 
+           other.language === this.language && 
+           other.isDark === this.isDark &&
+           other.lineHeight === this.lineHeight;
+  }
+
+  toDOM() {
+    const container = document.createElement('div');
+    container.style.margin = '0'; // NO margin at all
+    container.style.padding = '0'; // NO padding at all
+    container.style.borderRadius = '8px';
+    container.style.overflow = 'hidden';
+    container.style.backgroundColor = this.isDark ? '#2A2A37' : '#f8f9fa';
+    container.style.border = this.isDark ? '1px solid #363646' : '1px solid #e2e8f0';
+    container.style.display = 'block';
+    container.style.width = '100%';
+    container.style.lineHeight = '1'; // Force minimal line height
+    
+    // Language label (optional, only if language is specified)
+    if (this.language) {
+      const languageLabel = document.createElement('div');
+      languageLabel.textContent = this.language;
+      languageLabel.style.padding = '4px 8px'; // Very compact padding
+      languageLabel.style.fontSize = '0.7rem'; // Smaller font
+      languageLabel.style.fontWeight = '600';
+      languageLabel.style.color = this.isDark ? '#9e9b93' : '#64748b';
+      languageLabel.style.backgroundColor = this.isDark ? '#1F1F28' : '#f1f5f9';
+      languageLabel.style.borderBottom = this.isDark ? '1px solid #363646' : '1px solid #e2e8f0';
+      languageLabel.style.textTransform = 'uppercase';
+      languageLabel.style.letterSpacing = '0.05em';
+      container.appendChild(languageLabel);
+    }
+    
+    // Code content
+    const codeElement = document.createElement('pre');
+    codeElement.style.margin = '0';
+    codeElement.style.padding = '8px'; // Much smaller padding
+    codeElement.style.fontFamily = 'SF Mono, Monaco, Consolas, Liberation Mono, Courier New, monospace';
+    codeElement.style.fontSize = '0.9em';
+    codeElement.style.lineHeight = this.lineHeight.toString();
+    codeElement.style.color = this.isDark ? '#DCD7BA' : '#393836';
+    codeElement.style.backgroundColor = 'transparent';
+    codeElement.style.overflow = 'auto';
+    codeElement.style.whiteSpace = 'pre';
+    codeElement.style.cursor = 'text';
+    
+    const codeContent = document.createElement('code');
+    codeContent.style.fontFamily = 'inherit';
+    codeContent.style.fontSize = 'inherit';
+    codeContent.style.backgroundColor = 'transparent';
+    
+    // Apply basic syntax highlighting based on language
+    this.applySyntaxHighlighting(codeContent, this.code, this.language);
+    
+    codeElement.appendChild(codeContent);
+    container.appendChild(codeElement);
+    
+    return container;
+  }
+
+  private applySyntaxHighlighting(element: HTMLElement, code: string, language: string) {
+    // Simply set the text content and apply basic styling
+    element.textContent = code;
+    
+    // Apply language-specific styles to the entire code block
+    switch (language.toLowerCase()) {
+      case 'javascript':
+      case 'js':
+      case 'typescript':
+      case 'ts':
+        element.style.color = this.isDark ? '#DCD7BA' : '#393836';
+        break;
+      case 'python':
+      case 'py':
+        element.style.color = this.isDark ? '#DCD7BA' : '#393836';
+        break;
+      case 'html':
+        element.style.color = this.isDark ? '#DCD7BA' : '#393836';
+        break;
+      case 'css':
+        element.style.color = this.isDark ? '#DCD7BA' : '#393836';
+        break;
+      default:
+        element.style.color = this.isDark ? '#DCD7BA' : '#393836';
+    }
+  }
+
+  private getSyntaxPatterns(language: string) {
+    const basePatterns = [
+      { pattern: /"[^"]*"/g, className: 'string' },
+      { pattern: /'[^']*'/g, className: 'string' },
+      { pattern: /`[^`]*`/g, className: 'string' },
+      { pattern: /\/\/.*$/gm, className: 'comment' },
+      { pattern: /\/\*[\s\S]*?\*\//g, className: 'comment' },
+    ];
+
+    switch (language.toLowerCase()) {
+      case 'javascript':
+      case 'js':
+      case 'typescript':
+      case 'ts':
+        return [
+          ...basePatterns,
+          { pattern: /\b(function|const|let|var|if|else|for|while|return|class|extends|import|export|from|async|await|try|catch|finally|throw|new)\b/g, className: 'keyword' },
+          { pattern: /\b(true|false|null|undefined)\b/g, className: 'literal' },
+          { pattern: /\b\d+\.?\d*\b/g, className: 'number' },
+        ];
+      
+      case 'python':
+      case 'py':
+        return [
+          ...basePatterns,
+          { pattern: /\b(def|class|if|elif|else|for|while|return|import|from|as|try|except|finally|raise|with|lambda|async|await|yield)\b/g, className: 'keyword' },
+          { pattern: /\b(True|False|None)\b/g, className: 'literal' },
+          { pattern: /\b\d+\.?\d*\b/g, className: 'number' },
+          { pattern: /#.*$/gm, className: 'comment' },
+        ];
+      
+      case 'html':
+        return [
+          { pattern: /&lt;[^&]*&gt;/g, className: 'tag' },
+          { pattern: /&lt;\/[^&]*&gt;/g, className: 'tag' },
+          { pattern: /"[^"]*"/g, className: 'string' },
+          { pattern: /&lt;!--[\s\S]*?--&gt;/g, className: 'comment' },
+        ];
+      
+      case 'css':
+        return [
+          { pattern: /\{[^}]*\}/g, className: 'block' },
+          { pattern: /[.#]?[\w-]+(?=\s*\{)/g, className: 'selector' },
+          { pattern: /[\w-]+(?=\s*:)/g, className: 'property' },
+          { pattern: /"[^"]*"|'[^']*'/g, className: 'string' },
+          { pattern: /\/\*[\s\S]*?\*\//g, className: 'comment' },
+        ];
+      
+      default:
+        return basePatterns;
+    }
+  }
+
+  private getColorForClass(className: string): string {
+    const darkColors = {
+      keyword: '#8ea49e',      // muted teal
+      string: '#d4c196',       // warm beige
+      comment: '#727169',      // fujiGray
+      literal: '#c4b28a',      // soft yellow
+      number: '#c4b28a',       // soft yellow
+      tag: '#cc928e',          // soft coral
+      selector: '#a292a3',     // muted purple
+      property: '#8ea49e',     // muted teal
+      block: '#DCD7BA',        // fujiWhite
+    };
+
+    const lightColors = {
+      keyword: '#8ea49e',      // muted teal
+      string: '#d4c196',       // warm beige
+      comment: '#717C7C',      // gray
+      literal: '#c4b28a',      // soft yellow
+      number: '#c4b28a',       // soft yellow
+      tag: '#cc928e',          // soft coral
+      selector: '#a292a3',     // muted purple
+      property: '#8ea49e',     // muted teal
+      block: '#393836',        // dark
+    };
+
+    const colors = this.isDark ? darkColors : lightColors;
+    return colors[className as keyof typeof colors] || (this.isDark ? '#DCD7BA' : '#393836');
+  }
+
+  get estimatedHeight() {
+    // Estimate height based on number of lines with very compact spacing
+    const lines = this.code.split('\n').length;
+    const headerHeight = this.language ? 14 : 0; // Very small language label height
+    const padding = 12; // Minimal padding
+    const lineHeight = 12; // Very compact line height
+    return headerHeight + padding + (lines * lineHeight);
   }
 
   ignoreEvent() {
@@ -357,16 +652,107 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
             }
           });
 
-          // Add regex-based detection for strikethrough and list items
+          // Add regex-based detection for strikethrough, list items, and fenced code blocks
           const doc = view.state.doc;
           const strikethroughRegex = /~~([^~\n]+)~~/g;
           const unorderedListRegex = /^(\s*)([-*+])\s+(.+)$/;
           const orderedListRegex = /^(\s*)(\d+)\.\s+(.+)$/;
           
+          // Process fenced code blocks using a simpler approach
+          const processedCodeBlocks = new Set<number>();
+          
           // Search for patterns in the document
           for (let i = 1; i <= doc.lines; i++) {
             const line = doc.line(i);
             const lineText = line.text;
+            
+            // Skip if this line is part of an already processed code block
+            if (processedCodeBlocks.has(i)) {
+              continue;
+            }
+            
+            // Check for fenced code block start
+            const openFenceMatch = lineText.match(/^```(\w*)/);
+            if (openFenceMatch) {
+              const language = openFenceMatch[1] || '';
+              const codeLines: string[] = [];
+              let endLine = i + 1;
+              
+              // Find the closing fence
+              while (endLine <= doc.lines) {
+                const nextLine = doc.line(endLine);
+                const nextText = nextLine.text;
+                
+                if (nextText.match(/^```\s*$/)) {
+                  // Found closing fence
+                  break;
+                }
+                codeLines.push(nextText);
+                endLine++;
+              }
+              
+              // Only create code block if we found a closing fence and have content
+              if (endLine <= doc.lines && codeLines.length > 0) {
+                const codeContent = codeLines.join('\n');
+                
+                // Mark all lines as processed
+                for (let lineNum = i; lineNum <= endLine; lineNum++) {
+                  processedCodeBlocks.add(lineNum);
+                }
+                
+                // Create widget decoration to replace the opening line only
+                const widget = new CodeBlockWidget(codeContent, language, isDark, lineHeight);
+                const widgetDecoration = Decoration.replace({
+                  widget: widget
+                });
+                
+                // Replace just the opening fence line with the widget
+                decorations.push({ 
+                  from: line.from, 
+                  to: line.from + lineText.length, 
+                  decoration: widgetDecoration 
+                });
+                
+                // Hide content lines and closing fence with zero height
+                for (let lineNum = i + 1; lineNum <= endLine; lineNum++) {
+                  const hiddenLine = doc.line(lineNum);
+                  // Use line decoration to make these lines invisible with zero height
+                  decorations.push({ 
+                    from: hiddenLine.from, 
+                    to: hiddenLine.from,
+                    decoration: Decoration.line({
+                      attributes: {
+                        style: 'height: 0; overflow: hidden; line-height: 0; font-size: 0; margin: 0; padding: 0; border: none;'
+                      }
+                    })
+                  });
+                  
+                  // Also hide the text content
+                  if (hiddenLine.text.length > 0) {
+                    decorations.push({ 
+                      from: hiddenLine.from, 
+                      to: hiddenLine.from + hiddenLine.text.length,
+                      decoration: Decoration.replace({})
+                    });
+                  }
+                }
+              }
+              continue;
+            }
+            
+            // Collapse empty lines to reduce spacing
+            if (lineText.trim() === '') {
+              decorations.push({ 
+                from: line.from, 
+                to: line.from,
+                decoration: Decoration.line({
+                  attributes: {
+                    style: 'height: 0; overflow: hidden; line-height: 0; font-size: 0; margin: 0; padding: 0;'
+                  }
+                })
+              });
+              continue;
+            }
             
             // Check for strikethrough
             let match;
@@ -386,56 +772,150 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
             }
             strikethroughRegex.lastIndex = 0;
             
-            // Check for unordered list items
+            // Skip individual list item processing - we'll group them later
             const unorderedMatch = lineText.match(unorderedListRegex);
             if (unorderedMatch) {
-              const [, indentation, bullet, text] = unorderedMatch;
-              const level = Math.floor(indentation.length / 2); // 2 spaces = 1 level
-              
-              // Determine bullet style based on level and marker
-              let bulletStyle: '•' | '◦' | '▪';
-              if (bullet === '-') {
-                bulletStyle = level === 0 ? '•' : level === 1 ? '◦' : '▪';
-              } else if (bullet === '*') {
-                bulletStyle = level === 0 ? '•' : level === 1 ? '◦' : '▪';
-              } else { // bullet === '+'
-                bulletStyle = level === 0 ? '•' : level === 1 ? '◦' : '▪';
-              }
-              
-              const widget = new ListItemWidget(text.trim(), level, bulletStyle, isDark, lineHeight, false);
-              const decoration = Decoration.replace({
-                widget: widget
-              });
-              
-              decorations.push({ from: line.from, to: line.to, decoration });
+              // Don't process individual list items here - we'll group them
+              continue;
             }
             
-            // Check for ordered list items
+            // Skip individual ordered list item processing - we'll group them later
             const orderedMatch = lineText.match(orderedListRegex);
             if (orderedMatch) {
-              const [, indentation, number, text] = orderedMatch;
-              const level = Math.floor(indentation.length / 2); // 2 spaces = 1 level
-              
-              // Format number with period
-              const numberStyle = `${number}.`;
-              
-              const widget = new ListItemWidget(text.trim(), level, numberStyle, isDark, lineHeight, true);
-              const decoration = Decoration.replace({
-                widget: widget
-              });
-              
-              decorations.push({ from: line.from, to: line.to, decoration });
+              // Don't process individual list items here - we'll group them
+              continue;
             }
           }
           
+          // Now process list items by grouping consecutive ones
+          this.processListGroups(doc, decorations, isDark, lineHeight, unorderedListRegex, orderedListRegex);
+          
           // Sort decorations by position and add them in order
-          decorations.sort((a, b) => a.from - b.from);
+          decorations.sort((a, b) => {
+            if (a.from !== b.from) return a.from - b.from;
+            if (a.to !== b.to) return a.to - b.to;
+            // If same position and range, prioritize line decorations first
+            const aIsLine = !a.decoration.spec.widget;
+            const bIsLine = !b.decoration.spec.widget;
+            if (aIsLine !== bIsLine) return aIsLine ? -1 : 1;
+            return 0;
+          });
           
           for (const { from, to, decoration } of decorations) {
             builder.add(from, to, decoration);
           }
 
           return builder.finish();
+        }
+
+        processListGroups(doc: any, decorations: any[], isDark: boolean, lineHeight: number, unorderedListRegex: RegExp, orderedListRegex: RegExp) {
+          const listGroups: any[] = [];
+          let currentGroup: any = null;
+          
+          // Find consecutive list items and group them
+          for (let i = 1; i <= doc.lines; i++) {
+            const line = doc.line(i);
+            const lineText = line.text;
+            
+            const unorderedMatch = lineText.match(unorderedListRegex);
+            const orderedMatch = lineText.match(orderedListRegex);
+            
+            if (unorderedMatch || orderedMatch) {
+              const match = unorderedMatch || orderedMatch;
+              const isOrdered = !!orderedMatch;
+              const [, indentation, marker, text] = match;
+              const level = Math.floor(indentation.length / 2);
+              
+              const listItem = {
+                line: i,
+                from: line.from,
+                to: line.to,
+                text: text.trim(),
+                level,
+                marker,
+                isOrdered,
+                lineText
+              };
+              
+              // Start new group or add to existing group
+              if (!currentGroup || (currentGroup.lastLine !== i - 1)) {
+                // Start new group
+                if (currentGroup) {
+                  listGroups.push(currentGroup);
+                }
+                currentGroup = {
+                  items: [listItem],
+                  from: line.from,
+                  to: line.to,
+                  lastLine: i
+                };
+              } else {
+                // Add to current group
+                currentGroup.items.push(listItem);
+                currentGroup.to = line.to;
+                currentGroup.lastLine = i;
+              }
+            } else if (currentGroup && lineText.trim() === '') {
+              // Empty line - might be part of list, extend the group
+              currentGroup.to = line.to;
+              currentGroup.lastLine = i;
+            } else if (currentGroup) {
+              // Non-list line - end current group
+              listGroups.push(currentGroup);
+              currentGroup = null;
+            }
+          }
+          
+          // Don't forget the last group
+          if (currentGroup) {
+            listGroups.push(currentGroup);
+          }
+          
+          // Create decorations for each group
+          for (const group of listGroups) {
+            if (group.items.length > 0) {
+              // Replace only the first line with the group widget
+              const firstItem = group.items[0];
+              const widget = new ListGroupWidget(group.items, isDark, lineHeight);
+              const decoration = Decoration.replace({
+                widget: widget
+              });
+              
+              // Replace only the text content of the first line, not line breaks
+              const firstLine = doc.line(firstItem.line);
+              decorations.push({ 
+                from: firstLine.from, 
+                to: firstLine.from + firstLine.text.length, 
+                decoration 
+              });
+              
+              // Hide the remaining lines with collapsed height
+              for (let i = 1; i < group.items.length; i++) {
+                const item = group.items[i];
+                const line = doc.line(item.line);
+                
+                // Only add line decoration to collapse the height
+                decorations.push({ 
+                  from: line.from, 
+                  to: line.from,
+                  decoration: Decoration.line({
+                    attributes: {
+                      style: 'height: 0; overflow: hidden; line-height: 0; font-size: 0; margin: 0; padding: 0; display: none;'
+                    }
+                  })
+                });
+                
+                // Replace text content only if there is text
+                if (line.text.length > 0) {
+                  decorations.push({ 
+                    from: line.from, 
+                    to: line.from + line.text.length,
+                    decoration: Decoration.replace({})
+                  });
+                }
+              }
+            }
+          }
         }
       },
       {
