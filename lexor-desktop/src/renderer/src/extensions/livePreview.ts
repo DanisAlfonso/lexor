@@ -8,6 +8,8 @@ import { python } from '@codemirror/lang-python';
 import { html } from '@codemirror/lang-html';
 import { css } from '@codemirror/lang-css';
 import { json } from '@codemirror/lang-json';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 
 // Widget for rendering heading elements
 class HeadingWidget extends WidgetType {
@@ -697,6 +699,116 @@ class CodeBlockWidget extends WidgetType {
   }
 }
 
+// Widget for rendering mathematical equations using KaTeX
+class EquationWidget extends WidgetType {
+  constructor(
+    private latex: string,
+    private isBlock: boolean,
+    private isDark: boolean,
+    private lineHeight: number
+  ) {
+    super();
+  }
+
+  eq(other: EquationWidget) {
+    return other.latex === this.latex && 
+           other.isBlock === this.isBlock && 
+           other.isDark === this.isDark &&
+           other.lineHeight === this.lineHeight;
+  }
+
+  toDOM() {
+    const container = document.createElement(this.isBlock ? 'div' : 'span');
+    
+    // Base styling
+    container.style.fontFamily = 'inherit';
+    container.style.cursor = 'text';
+    container.style.color = this.isDark ? '#DCD7BA' : '#393836';
+    
+    if (this.isBlock) {
+      container.style.display = 'block';
+      container.style.textAlign = 'center';
+      container.style.margin = '1em 0';
+      container.style.padding = '0.5em 0';
+      container.style.lineHeight = this.lineHeight.toString();
+    } else {
+      container.style.display = 'inline';
+      container.style.verticalAlign = 'baseline';
+      container.style.margin = '0 2px';
+    }
+
+    try {
+      // Render LaTeX using KaTeX
+      const html = katex.renderToString(this.latex, {
+        throwOnError: false,
+        displayMode: this.isBlock,
+        output: 'html',
+        trust: false, // Security: don't trust arbitrary LaTeX commands
+        strict: false, // Allow more LaTeX constructs
+      });
+      
+      container.innerHTML = html;
+      
+      // Apply theme-specific styling to KaTeX elements
+      this.applyThemeStyles(container);
+      
+    } catch (error) {
+      // Fallback for invalid LaTeX - show the original text
+      const errorSpan = document.createElement('span');
+      errorSpan.textContent = this.isBlock ? `$$${this.latex}$$` : `$${this.latex}$`;
+      errorSpan.style.backgroundColor = this.isDark ? '#2A2A37' : '#fee2e2';
+      errorSpan.style.color = this.isDark ? '#e85d75' : '#dc2626';
+      errorSpan.style.padding = '2px 4px';
+      errorSpan.style.borderRadius = '3px';
+      errorSpan.style.fontSize = '0.9em';
+      errorSpan.style.fontFamily = 'SF Mono, Monaco, Consolas, Liberation Mono, Courier New, monospace';
+      errorSpan.title = `LaTeX Error: ${error instanceof Error ? error.message : 'Invalid equation'}`;
+      container.appendChild(errorSpan);
+    }
+
+    return container;
+  }
+
+  private applyThemeStyles(container: HTMLElement) {
+    // Apply dark/light theme colors to KaTeX rendered elements
+    const katexElements = container.querySelectorAll('.katex, .katex *');
+    
+    katexElements.forEach((element) => {
+      const htmlElement = element as HTMLElement;
+      
+      // Set text color for the theme
+      if (!htmlElement.style.color || htmlElement.style.color === 'inherit') {
+        htmlElement.style.color = this.isDark ? '#DCD7BA' : '#393836';
+      }
+      
+      // Handle specific KaTeX classes that might need theme adjustments
+      if (htmlElement.classList.contains('katex-html')) {
+        htmlElement.style.color = this.isDark ? '#DCD7BA' : '#393836';
+      }
+      
+      // Ensure mathematical symbols are visible
+      if (htmlElement.tagName === 'SPAN' && !htmlElement.style.color) {
+        htmlElement.style.color = this.isDark ? '#DCD7BA' : '#393836';
+      }
+    });
+  }
+
+  get estimatedHeight() {
+    if (this.isBlock) {
+      // Block equations need more vertical space
+      const lines = this.latex.split('\n').length;
+      return Math.max(40, lines * 20 + 32); // Base height + margins
+    } else {
+      // Inline equations should match line height
+      return Math.ceil(this.lineHeight * 16);
+    }
+  }
+
+  ignoreEvent() {
+    return false; // Allow text editing
+  }
+}
+
 // State field for toggling live preview mode
 import { StateField, StateEffect } from '@codemirror/state';
 
@@ -842,25 +954,28 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
             }
           });
 
-          // Add regex-based detection for strikethrough, list items, and fenced code blocks
+          // Add regex-based detection for strikethrough, equations, list items, and fenced code blocks
           const doc = view.state.doc;
           const strikethroughRegex = /~~([^~\n]+)~~/g;
+          const inlineMathRegex = /(?<!\$)\$(?!\$)([^$\n]+?)\$(?!\$)/g;  // Single $ for inline math
+          const blockMathRegex = /^\s*\$\$\s*\n?([\s\S]*?)\n?\s*\$\$\s*$/gm; // Block math $$...$$
           const unorderedListRegex = /^(\s*)([-*+])\s+(.+)$/;
           const orderedListRegex = /^(\s*)(\d+)\.\s+(.+)$/;
           const taskListRegex = /^(\s*)([-*+])\s+\[([ x])\]\s+(.+)$/;
           const horizontalRuleRegex = /^\s*(?:[-*_]\s*){3,}$/;
           
-          // Process fenced code blocks using a simpler approach
+          // Process fenced code blocks and block math using a simpler approach
           const processedCodeBlocks = new Set<number>();
           const processedTables = new Set<number>();
+          const processedBlockMath = new Set<number>();
           
           // Search for patterns in the document
           for (let i = 1; i <= doc.lines; i++) {
             const line = doc.line(i);
             const lineText = line.text;
             
-            // Skip if this line is part of an already processed code block or table
-            if (processedCodeBlocks.has(i) || processedTables.has(i)) {
+            // Skip if this line is part of an already processed code block, table, or block math
+            if (processedCodeBlocks.has(i) || processedTables.has(i) || processedBlockMath.has(i)) {
               continue;
             }
             
@@ -915,6 +1030,92 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
                 
                 continue;
               }
+            }
+            
+            // Check for block math ($$...$$)
+            const blockMathStartMatch = lineText.match(/^\s*\$\$\s*$/);
+            if (blockMathStartMatch) {
+              const mathLines: string[] = [];
+              let endLine = i + 1;
+              
+              // Find the closing $$
+              while (endLine <= doc.lines) {
+                const nextLine = doc.line(endLine);
+                const nextText = nextLine.text;
+                
+                if (nextText.match(/^\s*\$\$\s*$/)) {
+                  // Found closing $$
+                  break;
+                }
+                mathLines.push(nextText);
+                endLine++;
+              }
+              
+              // Only create block math if we found a closing $$ and have content
+              if (endLine <= doc.lines) {
+                const latex = mathLines.join('\n').trim();
+                
+                // Mark all lines as processed
+                for (let lineNum = i; lineNum <= endLine; lineNum++) {
+                  processedBlockMath.add(lineNum);
+                }
+                
+                // Create widget decoration to replace the opening line
+                const widget = new EquationWidget(latex, true, isDark, lineHeight);
+                const widgetDecoration = Decoration.replace({
+                  widget: widget
+                });
+                
+                // Replace just the opening $$ line with the widget
+                decorations.push({ 
+                  from: line.from, 
+                  to: line.from + lineText.length, 
+                  decoration: widgetDecoration 
+                });
+                
+                // Hide content lines and closing $$ with zero height
+                for (let lineNum = i + 1; lineNum <= endLine; lineNum++) {
+                  const hiddenLine = doc.line(lineNum);
+                  // Use line decoration to make these lines invisible with zero height
+                  decorations.push({ 
+                    from: hiddenLine.from, 
+                    to: hiddenLine.from,
+                    decoration: Decoration.line({
+                      attributes: {
+                        style: 'height: 0; overflow: hidden; line-height: 0; font-size: 0; margin: 0; padding: 0; border: none;'
+                      }
+                    })
+                  });
+                  
+                  // Also hide the text content
+                  if (hiddenLine.text.length > 0) {
+                    decorations.push({ 
+                      from: hiddenLine.from, 
+                      to: hiddenLine.from + hiddenLine.text.length,
+                      decoration: Decoration.replace({})
+                    });
+                  }
+                }
+              }
+              continue;
+            }
+            
+            // Also handle single-line block math: $$equation$$
+            const singleLineBlockMathMatch = lineText.match(/^\s*\$\$(.+?)\$\$\s*$/);
+            if (singleLineBlockMathMatch) {
+              const latex = singleLineBlockMathMatch[1].trim();
+              
+              if (latex) {
+                processedBlockMath.add(i);
+                
+                const widget = new EquationWidget(latex, true, isDark, lineHeight);
+                const decoration = Decoration.replace({
+                  widget: widget
+                });
+                
+                decorations.push({ from: line.from, to: line.to, decoration });
+              }
+              continue;
             }
             
             // Check for fenced code block start
@@ -1029,6 +1230,24 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
               }
             }
             strikethroughRegex.lastIndex = 0;
+            
+            // Check for inline math equations ($...$)
+            let mathMatch;
+            while ((mathMatch = inlineMathRegex.exec(lineText)) !== null) {
+              const matchStart = line.from + mathMatch.index;
+              const matchEnd = matchStart + mathMatch[0].length;
+              const latex = mathMatch[1].trim();
+              
+              if (latex) {
+                const widget = new EquationWidget(latex, false, isDark, lineHeight);
+                const decoration = Decoration.replace({
+                  widget: widget
+                });
+                
+                decorations.push({ from: matchStart, to: matchEnd, decoration });
+              }
+            }
+            inlineMathRegex.lastIndex = 0;
             
             // Skip individual list item processing - we'll group them later
             const unorderedMatch = lineText.match(unorderedListRegex);
