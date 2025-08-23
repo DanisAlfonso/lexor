@@ -244,7 +244,9 @@ class ListGroupWidget extends WidgetType {
            other.items.every((item, i) => 
              item.text === this.items[i].text &&
              item.level === this.items[i].level &&
-             item.isOrdered === this.items[i].isOrdered
+             item.isOrdered === this.items[i].isOrdered &&
+             item.isTask === this.items[i].isTask &&
+             item.taskChecked === this.items[i].taskChecked
            ) &&
            other.isDark === this.isDark &&
            other.lineHeight === this.lineHeight;
@@ -268,30 +270,64 @@ class ListGroupWidget extends WidgetType {
       itemDiv.style.paddingLeft = `${item.level * 20}px`;
       itemDiv.style.lineHeight = this.lineHeight.toString();
 
-      // Create bullet/number
-      let bulletStyle: string;
-      if (item.isOrdered) {
-        bulletStyle = `${item.marker}.`;
+      // Create bullet/number/checkbox
+      const bullet = document.createElement('span');
+      bullet.style.marginRight = '8px';
+      bullet.style.userSelect = 'none';
+      bullet.style.display = 'inline-flex';
+      bullet.style.alignItems = 'center';
+      bullet.style.minWidth = item.isOrdered ? '20px' : '18px';
+      
+      if (item.isTask) {
+        // Create checkbox for task items
+        const checkbox = document.createElement('span');
+        checkbox.style.width = '14px';
+        checkbox.style.height = '14px';
+        checkbox.style.border = this.isDark ? '1px solid #727169' : '1px solid #9ca3af';
+        checkbox.style.borderRadius = '2px';
+        checkbox.style.display = 'inline-flex';
+        checkbox.style.alignItems = 'center';
+        checkbox.style.justifyContent = 'center';
+        checkbox.style.fontSize = '10px';
+        checkbox.style.lineHeight = '1';
+        
+        if (item.taskChecked) {
+          checkbox.textContent = '✓';
+          checkbox.style.backgroundColor = this.isDark ? '#8ea49e' : '#10b981';
+          checkbox.style.borderColor = this.isDark ? '#8ea49e' : '#10b981';
+          checkbox.style.color = 'white';
+        } else {
+          checkbox.style.backgroundColor = 'transparent';
+        }
+        
+        bullet.appendChild(checkbox);
+      } else if (item.isOrdered) {
+        bullet.textContent = `${item.marker}.`;
+        bullet.style.color = this.isDark ? '#DCD7BA' : '#393836';
+        bullet.style.fontWeight = 'normal';
+        bullet.style.textAlign = 'right';
       } else {
         const level = item.level;
-        bulletStyle = level === 0 ? '•' : level === 1 ? '◦' : '▪';
+        bullet.textContent = level === 0 ? '•' : level === 1 ? '◦' : '▪';
+        bullet.style.color = this.isDark ? '#DCD7BA' : '#393836';
+        bullet.style.fontWeight = 'bold';
+        bullet.style.textAlign = 'left';
       }
-
-      const bullet = document.createElement('span');
-      bullet.textContent = bulletStyle;
-      bullet.style.marginRight = '8px';
-      bullet.style.color = this.isDark ? '#DCD7BA' : '#393836';
-      bullet.style.fontWeight = item.isOrdered ? 'normal' : 'bold';
-      bullet.style.minWidth = item.isOrdered ? '20px' : '10px';
-      bullet.style.userSelect = 'none';
-      bullet.style.textAlign = item.isOrdered ? 'right' : 'left';
 
       const text = document.createElement('span');
       text.textContent = item.text;
-      text.style.color = this.isDark ? '#DCD7BA' : '#393836';
       text.style.fontFamily = 'inherit';
       text.style.cursor = 'text';
       text.style.flex = '1';
+      
+      // Special styling for task items
+      if (item.isTask && item.taskChecked) {
+        text.style.textDecoration = 'line-through';
+        text.style.opacity = '0.6';
+        text.style.color = this.isDark ? '#727169' : '#6b7280'; // More muted color
+      } else {
+        text.style.color = this.isDark ? '#DCD7BA' : '#393836';
+      }
 
       itemDiv.appendChild(bullet);
       itemDiv.appendChild(text);
@@ -409,6 +445,56 @@ class TableWidget extends WidgetType {
     const rowHeight = 28;
     const totalRows = this.tableData.rows.length;
     return headerHeight + (totalRows * rowHeight) + 16; // +16 for margins
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+}
+
+// Widget for rendering horizontal rules
+class HorizontalRuleWidget extends WidgetType {
+  constructor(
+    private isDark: boolean,
+    private lineHeight: number
+  ) {
+    super();
+  }
+
+  eq(other: HorizontalRuleWidget) {
+    return other.isDark === this.isDark && other.lineHeight === this.lineHeight;
+  }
+
+  toDOM() {
+    const container = document.createElement('div');
+    container.style.margin = '2em 0';
+    container.style.padding = '0';
+    container.style.textAlign = 'center';
+    container.style.lineHeight = this.lineHeight.toString();
+    container.style.position = 'relative';
+    
+    const hr = document.createElement('div');
+    hr.style.height = '1px';
+    hr.style.width = '100%';
+    hr.style.margin = '0';
+    hr.style.position = 'relative';
+    
+    // Create the main line with gradient
+    hr.style.background = this.isDark 
+      ? 'linear-gradient(to right, transparent 0%, #363646 20%, #545464 50%, #363646 80%, transparent 100%)'
+      : 'linear-gradient(to right, transparent 0%, #e2e8f0 20%, #cbd5e1 50%, #e2e8f0 80%, transparent 100%)';
+    
+    // Add a subtle shadow/glow effect
+    hr.style.boxShadow = this.isDark 
+      ? '0 0 4px rgba(84, 84, 100, 0.3)'
+      : '0 0 2px rgba(203, 213, 225, 0.5)';
+    
+    container.appendChild(hr);
+    return container;
+  }
+
+  get estimatedHeight() {
+    return Math.ceil(this.lineHeight * 16) + 32; // Line height + margins
   }
 
   ignoreEvent() {
@@ -761,6 +847,8 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
           const strikethroughRegex = /~~([^~\n]+)~~/g;
           const unorderedListRegex = /^(\s*)([-*+])\s+(.+)$/;
           const orderedListRegex = /^(\s*)(\d+)\.\s+(.+)$/;
+          const taskListRegex = /^(\s*)([-*+])\s+\[([ x])\]\s+(.+)$/;
+          const horizontalRuleRegex = /^\s*(?:[-*_]\s*){3,}$/;
           
           // Process fenced code blocks using a simpler approach
           const processedCodeBlocks = new Set<number>();
@@ -912,6 +1000,18 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
               continue;
             }
             
+            // Check for horizontal rules (---, ***, ___)
+            const hrMatch = lineText.match(horizontalRuleRegex);
+            if (hrMatch) {
+              const widget = new HorizontalRuleWidget(isDark, lineHeight);
+              const decoration = Decoration.replace({
+                widget: widget
+              });
+              
+              decorations.push({ from: line.from, to: line.to, decoration });
+              continue;
+            }
+            
             // Check for strikethrough
             let match;
             while ((match = strikethroughRegex.exec(lineText)) !== null) {
@@ -946,7 +1046,7 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
           }
           
           // Now process list items by grouping consecutive ones
-          this.processListGroups(doc, decorations, isDark, lineHeight, unorderedListRegex, orderedListRegex);
+          this.processListGroups(doc, decorations, isDark, lineHeight, unorderedListRegex, orderedListRegex, taskListRegex);
           
           // Sort decorations by position and add them in order
           decorations.sort((a, b) => {
@@ -966,7 +1066,7 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
           return builder.finish();
         }
 
-        processListGroups(doc: any, decorations: any[], isDark: boolean, lineHeight: number, unorderedListRegex: RegExp, orderedListRegex: RegExp) {
+        processListGroups(doc: any, decorations: any[], isDark: boolean, lineHeight: number, unorderedListRegex: RegExp, orderedListRegex: RegExp, taskListRegex: RegExp) {
           const listGroups: any[] = [];
           let currentGroup: any = null;
           
@@ -977,11 +1077,26 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
             
             const unorderedMatch = lineText.match(unorderedListRegex);
             const orderedMatch = lineText.match(orderedListRegex);
+            const taskMatch = lineText.match(taskListRegex);
             
-            if (unorderedMatch || orderedMatch) {
-              const match = unorderedMatch || orderedMatch;
-              const isOrdered = !!orderedMatch;
-              const [, indentation, marker, text] = match;
+            if (unorderedMatch || orderedMatch || taskMatch) {
+              let match, isOrdered = false, isTask = false, taskChecked = false;
+              let indentation, marker, text;
+              
+              if (taskMatch) {
+                [, indentation, marker, taskChecked, text] = taskMatch;
+                taskChecked = taskChecked === 'x';
+                isTask = true;
+                match = taskMatch;
+              } else if (orderedMatch) {
+                [, indentation, marker, text] = orderedMatch;
+                isOrdered = true;
+                match = orderedMatch;
+              } else {
+                [, indentation, marker, text] = unorderedMatch;
+                match = unorderedMatch;
+              }
+              
               const level = Math.floor(indentation.length / 2);
               
               const listItem = {
@@ -992,6 +1107,8 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
                 level,
                 marker,
                 isOrdered,
+                isTask,
+                taskChecked,
                 lineText
               };
               
