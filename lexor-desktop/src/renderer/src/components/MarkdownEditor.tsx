@@ -254,7 +254,7 @@ export function MarkdownEditor() {
         fontFamily: fontFamily
       },
       '.cm-content': {
-        padding: isFocusMode ? '80px 160px' : '40px 40px',
+        padding: isFocusMode ? '80px 120px' : '40px 40px',
         caretColor: isDarkMode ? '#c4b28a' : '#393836',
         lineHeight: lineHeight.toString(),
         minHeight: '100%',
