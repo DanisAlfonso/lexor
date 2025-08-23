@@ -16,7 +16,6 @@ export interface AppState {
   currentView: ViewType;
   sidebarCollapsed: boolean;
   isFocusMode: boolean;
-  isPreviewMode: boolean;
   zoomLevel: number;
   
   // Document State
@@ -60,7 +59,6 @@ export interface AppState {
   setCurrentView: (view: ViewType) => void;
   toggleSidebar: () => void;
   toggleFocusMode: () => void;
-  togglePreviewMode: () => void;
   setZoomLevel: (level: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;
@@ -118,7 +116,6 @@ export const useAppStore = create<AppState>()(
       currentView: 'editor',
       sidebarCollapsed: false,
       isFocusMode: false,
-      isPreviewMode: false,
       zoomLevel: 100,
       
       currentDocument: null,
@@ -174,9 +171,6 @@ export const useAppStore = create<AppState>()(
         }
       },
       
-      togglePreviewMode: () => set((state) => ({ 
-        isPreviewMode: !state.isPreviewMode 
-      })),
       
       setZoomLevel: (level) => {
         const clampedLevel = Math.max(50, Math.min(200, level));
@@ -237,7 +231,6 @@ export const useAppStore = create<AppState>()(
             isRightPaneModified: false,
             focusedPane: 'left',
             // Disable preview mode when entering split screen
-            isPreviewMode: false
           });
         }
       },

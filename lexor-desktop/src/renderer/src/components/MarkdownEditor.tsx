@@ -4,7 +4,9 @@ import CodeMirror from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { EditorView } from '@codemirror/view';
 import { Extension } from '@codemirror/state';
+import { keymap } from '@codemirror/view';
 import { useAppStore } from '../stores/appStore';
+import { conditionalLivePreview, toggleLivePreview } from '../extensions/livePreview';
 import { clsx } from 'clsx';
 
 // Helper function to format font family with proper quotes and fallbacks
@@ -94,7 +96,6 @@ export function MarkdownEditor() {
     documentContent,
     setDocumentContent,
     isFocusMode,
-    isPreviewMode,
     zoomLevel,
     fontSize,
     lineHeight,
@@ -113,6 +114,35 @@ export function MarkdownEditor() {
     // Scrollbar preference
     showScrollbar
   } = useAppStore();
+
+  // Live preview state
+  const [isLivePreviewEnabled, setIsLivePreviewEnabled] = useState(false);
+
+  // Handle menu-triggered live preview toggle
+  useEffect(() => {
+    const handleToggleLivePreview = () => {
+      const newState = !isLivePreviewEnabled;
+      setIsLivePreviewEnabled(newState);
+      
+      // Update the CodeMirror view if it exists
+      if (editorRef.current?.view) {
+        editorRef.current.view.dispatch({
+          effects: toggleLivePreview.of(newState)
+        });
+      }
+      if (rightEditorRef.current?.view) {
+        rightEditorRef.current.view.dispatch({
+          effects: toggleLivePreview.of(newState)
+        });
+      }
+    };
+
+    // Override the existing preview menu handler with our live preview
+    if (window.electronAPI?.menu?.onTogglePreview) {
+      const unsubscribe = window.electronAPI.menu.onTogglePreview(handleToggleLivePreview);
+      return unsubscribe;
+    }
+  }, [isLivePreviewEnabled]);
 
 
   const editorRef = useRef<any>(null);
@@ -263,10 +293,25 @@ export function MarkdownEditor() {
   const formattedFontFamily = formatFontFamily(fontFamily);
   const finalFontSize = `${Math.round((fontSize * zoomLevel) / 100)}px`;
   
+  // Keyboard shortcut handler for live preview (using the existing Cmd+Shift+P shortcut)
+  const livePreviewKeymap = keymap.of([{
+    key: 'Mod-Shift-p',
+    run: (view) => {
+      const newState = !isLivePreviewEnabled;
+      setIsLivePreviewEnabled(newState);
+      view.dispatch({
+        effects: toggleLivePreview.of(newState)
+      });
+      return true;
+    }
+  }]);
+
   const extensions: Extension[] = [
     markdown(),
     EditorView.lineWrapping, // This is the key for proper responsive wrapping!
     createMarkdownHighlighting(isDarkMode),
+    conditionalLivePreview(isDarkMode, lineHeight),
+    livePreviewKeymap,
     // Combine all theme styles into one extension to prevent conflicts
     EditorView.theme({
       '&': { 
@@ -537,7 +582,6 @@ export function MarkdownEditor() {
       {/* Editor pane */}
       <div className={clsx(
         'flex-1 relative',
-        isPreviewMode ? 'w-1/2' : 'w-full',
         isFocusMode && 'focus-mode'
       )}>
         <div 
@@ -581,33 +625,6 @@ export function MarkdownEditor() {
           </div>
         </div>
       </div>
-
-      {/* Preview pane */}
-      {isPreviewMode && (
-        <div 
-          className="w-1/2 border-l"
-          style={{
-            borderColor: isDarkMode ? '#363646' : '#c7d7e0'
-          }}
-        >
-          <div 
-            className="h-full p-8 overflow-auto custom-scrollbar"
-            style={{
-              backgroundColor: isDarkMode ? '#1F1F28' : '#f9fafb'
-            }}
-          >
-            <div className="prose dark:prose-dark max-w-none">
-              {/* TODO: Render markdown preview */}
-              <div className={clsx(
-                "italic",
-                isDarkMode ? "text-kanagawa-gray" : "text-gray-500"
-              )}>
-                Markdown preview will be implemented here
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

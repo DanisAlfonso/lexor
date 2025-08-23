@@ -5,7 +5,6 @@ export function useMenuHandlers() {
   const {
     toggleSidebar,
     toggleFocusMode,
-    togglePreviewMode,
     zoomIn,
     zoomOut,
     resetZoom,
@@ -346,7 +345,6 @@ export function useMenuHandlers() {
       window.electronAPI.menu.onDeleteSelected(handleDeleteSelected),
       window.electronAPI.menu.onToggleSidebar(toggleSidebar),
       window.electronAPI.menu.onToggleFocusMode(toggleFocusMode),
-      window.electronAPI.menu.onTogglePreview(togglePreviewMode),
       window.electronAPI.menu.onZoomIn(zoomIn),
       window.electronAPI.menu.onZoomOut(zoomOut),
       window.electronAPI.menu.onResetZoom(resetZoom),
@@ -372,7 +370,6 @@ export function useMenuHandlers() {
   }, [
     toggleSidebar,
     toggleFocusMode,
-    togglePreviewMode,
     zoomIn,
     zoomOut,
     resetZoom,
