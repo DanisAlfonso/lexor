@@ -36,7 +36,11 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     setCurrentDocument,
     setDocumentContent,
     setDocumentModified,
-    focusEditor
+    focusEditor,
+    // Split screen functionality
+    isSplitScreenMode,
+    openInRightPane,
+    focusedPane
   } = useAppStore();
 
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -491,6 +495,25 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
           }}
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Open in Right Pane - only for files in split screen mode */}
+          {isSplitScreenMode && !contextMenu.item.isDirectory && (
+            <button
+              onClick={async () => {
+                await openInRightPane(contextMenu.item!.path);
+                closeContextMenu();
+              }}
+              className={clsx(
+                'w-full flex items-center px-3 py-2 text-sm transition-colors text-left',
+                isDarkMode
+                  ? 'text-accent-blue hover:bg-kanagawa-ink5'
+                  : 'text-blue-600 hover:bg-blue-50'
+              )}
+            >
+              <DocumentTextIcon className="h-4 w-4 mr-3" />
+              Open in Right Pane
+            </button>
+          )}
+          
           <button
             onClick={() => handleRename(contextMenu.item!)}
             className={clsx(

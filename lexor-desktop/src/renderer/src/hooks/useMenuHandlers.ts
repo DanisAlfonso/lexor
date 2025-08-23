@@ -23,6 +23,14 @@ export function useMenuHandlers() {
     currentDocument,
     focusEditor,
     currentView,
+    // Split screen actions
+    toggleSplitScreen,
+    closeSplitScreen,
+    setFocusedPane,
+    swapPanes,
+    isSplitScreenMode,
+    // Scrollbar toggle
+    toggleScrollbar,
   } = useAppStore();
 
   // Update menu state when selection or view changes
@@ -239,6 +247,37 @@ export function useMenuHandlers() {
       console.log('Keyboard shortcuts not implemented yet');
     };
 
+    // Split screen operations
+    const handleToggleSplitScreen = () => {
+      toggleSplitScreen();
+    };
+
+    const handleCloseSplitScreen = () => {
+      closeSplitScreen();
+    };
+
+    const handleFocusLeftPane = () => {
+      if (isSplitScreenMode) {
+        setFocusedPane('left');
+      }
+    };
+
+    const handleFocusRightPane = () => {
+      if (isSplitScreenMode) {
+        setFocusedPane('right');
+      }
+    };
+
+    const handleSwapPanes = () => {
+      if (isSplitScreenMode) {
+        swapPanes();
+      }
+    };
+
+    const handleToggleScrollbar = () => {
+      toggleScrollbar();
+    };
+
     const handleRenameSelected = () => {
       if (!selectedItem) {
         console.warn('No item selected for rename');
@@ -317,6 +356,13 @@ export function useMenuHandlers() {
       window.electronAPI.menu.onExportDeck(handleExportDeck),
       window.electronAPI.menu.onStudyStats(handleStudyStats),
       window.electronAPI.menu.onKeyboardShortcuts(handleKeyboardShortcuts),
+      // Split screen handlers
+      window.electronAPI.menu.onToggleSplitScreen(handleToggleSplitScreen),
+      window.electronAPI.menu.onCloseSplitScreen(handleCloseSplitScreen),
+      window.electronAPI.menu.onFocusLeftPane(handleFocusLeftPane),
+      window.electronAPI.menu.onFocusRightPane(handleFocusRightPane),
+      window.electronAPI.menu.onSwapPanes(handleSwapPanes),
+      window.electronAPI.menu.onToggleScrollbar(handleToggleScrollbar),
     ];
 
     // Cleanup function
@@ -344,5 +390,11 @@ export function useMenuHandlers() {
     currentDocument,
     focusEditor,
     currentView,
+    toggleSplitScreen,
+    closeSplitScreen,
+    setFocusedPane,
+    swapPanes,
+    isSplitScreenMode,
+    toggleScrollbar,
   ]);
 }

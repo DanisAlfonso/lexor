@@ -24,6 +24,14 @@ export interface AppState {
   documentContent: string;
   isDocumentModified: boolean;
 
+  // Split Screen State
+  isSplitScreenMode: boolean;
+  rightPaneDocument: string | null;
+  rightPaneContent: string;
+  isRightPaneModified: boolean;
+  focusedPane: 'left' | 'right';
+  splitRatio: number; // 0.5 = equal split, 0.3 = left smaller, 0.7 = left larger
+
   // Folder State
   currentFolder: string | null;
   rootFolder: string | null;
@@ -46,6 +54,7 @@ export interface AppState {
   fontSize: number;
   lineHeight: number;
   fontFamily: string;
+  showScrollbar: boolean;
   
   // Actions
   setCurrentView: (view: ViewType) => void;
@@ -60,6 +69,17 @@ export interface AppState {
   setCurrentDocument: (path: string | null) => void;
   setDocumentContent: (content: string) => void;
   setDocumentModified: (modified: boolean) => void;
+
+  // Split Screen Actions
+  toggleSplitScreen: () => void;
+  closeSplitScreen: () => void;
+  setFocusedPane: (pane: 'left' | 'right') => void;
+  setSplitRatio: (ratio: number) => void;
+  setRightPaneDocument: (path: string | null) => void;
+  setRightPaneContent: (content: string) => void;
+  setRightPaneModified: (modified: boolean) => void;
+  openInRightPane: (filePath: string) => Promise<void>;
+  swapPanes: () => void;
   
   setCurrentFolder: (path: string | null) => void;
   setRootFolder: (path: string | null) => void;
@@ -87,6 +107,8 @@ export interface AppState {
   setFontSize: (size: number) => void;
   setLineHeight: (height: number) => void;
   setFontFamily: (family: string) => void;
+  setShowScrollbar: (show: boolean) => void;
+  toggleScrollbar: () => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -102,6 +124,13 @@ export const useAppStore = create<AppState>()(
       currentDocument: null,
       documentContent: '',
       isDocumentModified: false,
+
+      isSplitScreenMode: false,
+      rightPaneDocument: null,
+      rightPaneContent: '',
+      isRightPaneModified: false,
+      focusedPane: 'left',
+      splitRatio: 0.5,
 
       currentFolder: null,
       rootFolder: null,
@@ -121,6 +150,7 @@ export const useAppStore = create<AppState>()(
       fontSize: 16,
       lineHeight: 1.6,
       fontFamily: 'SF Mono',
+      showScrollbar: true,
       
       // Actions
       setCurrentView: (view) => set({ currentView: view }),
@@ -175,14 +205,120 @@ export const useAppStore = create<AppState>()(
         }
       },
       
-      setDocumentContent: (content) => set({ 
-        documentContent: content,
-        isDocumentModified: true
-      }),
+      setDocumentContent: (content) => {
+        const state = get();
+        set({ 
+          documentContent: content,
+          isDocumentModified: true
+        });
+        
+        // If both panes show the same document, keep modification state in sync
+        if (state.isSplitScreenMode && state.currentDocument === state.rightPaneDocument) {
+          set({ isRightPaneModified: true });
+        }
+      },
       
       setDocumentModified: (modified) => set({ 
         isDocumentModified: modified 
       }),
+
+      // Split Screen Actions
+      toggleSplitScreen: () => {
+        const state = get();
+        if (state.isSplitScreenMode) {
+          // Close split screen
+          get().closeSplitScreen();
+        } else {
+          // Open split screen with current document in both panes
+          set({ 
+            isSplitScreenMode: true,
+            rightPaneDocument: state.currentDocument,
+            rightPaneContent: state.documentContent,
+            isRightPaneModified: false,
+            focusedPane: 'left',
+            // Disable preview mode when entering split screen
+            isPreviewMode: false
+          });
+        }
+      },
+
+      closeSplitScreen: () => set({ 
+        isSplitScreenMode: false,
+        rightPaneDocument: null,
+        rightPaneContent: '',
+        isRightPaneModified: false,
+        focusedPane: 'left'
+      }),
+
+      setFocusedPane: (pane) => set({ focusedPane: pane }),
+      
+      setSplitRatio: (ratio) => {
+        const clampedRatio = Math.max(0.2, Math.min(0.8, ratio));
+        set({ splitRatio: clampedRatio });
+      },
+
+      setRightPaneDocument: (path) => {
+        set({ rightPaneDocument: path });
+        if (path) {
+          get().setLastOpenedDocument(path);
+        }
+      },
+
+      setRightPaneContent: (content) => {
+        const state = get();
+        set({ 
+          rightPaneContent: content,
+          isRightPaneModified: true
+        });
+        
+        // If both panes show the same document, keep modification state in sync
+        if (state.currentDocument === state.rightPaneDocument) {
+          set({ isDocumentModified: true });
+        }
+      },
+
+      setRightPaneModified: (modified) => set({ 
+        isRightPaneModified: modified 
+      }),
+
+      openInRightPane: async (filePath: string) => {
+        try {
+          // Read the file content
+          const content = await window.electronAPI?.file?.readFile(filePath);
+          if (content !== undefined) {
+            set({
+              rightPaneDocument: filePath,
+              rightPaneContent: content,
+              isRightPaneModified: false,
+              focusedPane: 'right'
+            });
+            
+            // Track as last opened document
+            get().setLastOpenedDocument(filePath);
+          }
+        } catch (error) {
+          console.error('Failed to open file in right pane:', filePath, error);
+        }
+      },
+
+      swapPanes: () => {
+        const state = get();
+        if (!state.isSplitScreenMode) return;
+        
+        set({
+          // Swap documents
+          currentDocument: state.rightPaneDocument,
+          documentContent: state.rightPaneContent,
+          isDocumentModified: state.isRightPaneModified,
+          
+          rightPaneDocument: state.currentDocument,
+          rightPaneContent: state.documentContent,
+          isRightPaneModified: state.isDocumentModified,
+          
+          // Keep focus on same side but swap the content
+          focusedPane: state.focusedPane
+        });
+      },
 
       setCurrentFolder: (path) => set({ currentFolder: path }),
       setRootFolder: (path) => set({ rootFolder: path }),
@@ -425,6 +561,8 @@ Happy writing!
       setFontSize: (fontSize) => set({ fontSize }),
       setLineHeight: (lineHeight) => set({ lineHeight }),
       setFontFamily: (fontFamily) => set({ fontFamily }),
+      setShowScrollbar: (show) => set({ showScrollbar: show }),
+      toggleScrollbar: () => set((state) => ({ showScrollbar: !state.showScrollbar })),
       
       focusEditor: () => {
         // Dispatch a custom event that the editor can listen to
@@ -445,6 +583,8 @@ Happy writing!
         lastOpenedDocument: state.lastOpenedDocument,
         hasLaunchedBefore: state.hasLaunchedBefore,
         isFirstTimeUser: state.isFirstTimeUser,
+        splitRatio: state.splitRatio,
+        showScrollbar: state.showScrollbar,
       }),
     }
   )

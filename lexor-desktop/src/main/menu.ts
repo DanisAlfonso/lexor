@@ -156,6 +156,39 @@ export function createMenu(): Menu {
           type: 'checkbox',
           click: () => togglePreview()
         },
+        { 
+          label: 'Split Screen', 
+          accelerator: 'CmdOrCtrl+\\',
+          type: 'checkbox',
+          click: () => toggleSplitScreen()
+        },
+        { 
+          label: 'Close Split', 
+          accelerator: 'CmdOrCtrl+W',
+          click: () => closeSplitScreen()
+        },
+        { 
+          label: 'Focus Left Pane', 
+          accelerator: 'CmdOrCtrl+1',
+          click: () => focusLeftPane()
+        },
+        { 
+          label: 'Focus Right Pane', 
+          accelerator: 'CmdOrCtrl+2',
+          click: () => focusRightPane()
+        },
+        { 
+          label: 'Swap Panes', 
+          accelerator: 'CmdOrCtrl+Shift+X',
+          click: () => swapPanes()
+        },
+        { type: 'separator' },
+        { 
+          label: 'Toggle Scrollbar', 
+          accelerator: 'CmdOrCtrl+Shift+B',
+          type: 'checkbox',
+          click: () => toggleScrollbar()
+        },
         { type: 'separator' },
         { 
           label: 'Zoom In', 
@@ -508,6 +541,36 @@ function toggleSidebar(): void {
 function togglePreview(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   focusedWindow?.webContents.send('menu:toggle-preview');
+}
+
+function toggleSplitScreen(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:toggle-split-screen');
+}
+
+function closeSplitScreen(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:close-split-screen');
+}
+
+function focusLeftPane(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:focus-left-pane');
+}
+
+function focusRightPane(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:focus-right-pane');
+}
+
+function swapPanes(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:swap-panes');
+}
+
+function toggleScrollbar(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:toggle-scrollbar');
 }
 
 function zoomIn(): void {

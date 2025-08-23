@@ -155,6 +155,31 @@ const electronAPI = {
       ipcRenderer.on('menu:keyboard-shortcuts', callback);
       return () => ipcRenderer.removeListener('menu:keyboard-shortcuts', callback);
     },
+    // Split screen handlers
+    onToggleSplitScreen: (callback: () => void) => {
+      ipcRenderer.on('menu:toggle-split-screen', callback);
+      return () => ipcRenderer.removeListener('menu:toggle-split-screen', callback);
+    },
+    onCloseSplitScreen: (callback: () => void) => {
+      ipcRenderer.on('menu:close-split-screen', callback);
+      return () => ipcRenderer.removeListener('menu:close-split-screen', callback);
+    },
+    onFocusLeftPane: (callback: () => void) => {
+      ipcRenderer.on('menu:focus-left-pane', callback);
+      return () => ipcRenderer.removeListener('menu:focus-left-pane', callback);
+    },
+    onFocusRightPane: (callback: () => void) => {
+      ipcRenderer.on('menu:focus-right-pane', callback);
+      return () => ipcRenderer.removeListener('menu:focus-right-pane', callback);
+    },
+    onSwapPanes: (callback: () => void) => {
+      ipcRenderer.on('menu:swap-panes', callback);
+      return () => ipcRenderer.removeListener('menu:swap-panes', callback);
+    },
+    onToggleScrollbar: (callback: () => void) => {
+      ipcRenderer.on('menu:toggle-scrollbar', callback);
+      return () => ipcRenderer.removeListener('menu:toggle-scrollbar', callback);
+    },
   },
 
   // Database operations (for local SQLite database)
