@@ -378,11 +378,15 @@ export function MarkdownEditor() {
         >
           {/* Left Pane Header */}
           <div className={clsx(
-            'flex items-center justify-between px-4 py-2 border-b text-sm font-medium',
+            'flex items-center justify-between px-4 py-2 text-sm font-medium',
             focusedPane === 'left' 
-              ? isDarkMode ? 'bg-kanagawa-ink4 text-kanagawa-white border-accent-blue' : 'bg-blue-50 text-blue-900 border-blue-200'
-              : isDarkMode ? 'bg-kanagawa-ink2 text-kanagawa-gray border-kanagawa-ink4' : 'bg-gray-50 text-gray-600 border-gray-200'
-          )}>
+              ? isDarkMode ? 'bg-kanagawa-ink4 text-kanagawa-white' : 'bg-blue-50 text-blue-900'
+              : isDarkMode ? 'bg-kanagawa-ink2 text-kanagawa-gray' : 'bg-gray-50 text-gray-600'
+          )}
+          style={{
+            borderBottom: 'none',
+            outline: 'none'
+          }}>
             <span className="truncate">{getDocumentTitle(currentDocument)}</span>
             <div className="flex items-center space-x-2">
               {focusedPane === 'left' && (
@@ -444,11 +448,15 @@ export function MarkdownEditor() {
         >
           {/* Right Pane Header */}
           <div className={clsx(
-            'flex items-center justify-between px-4 py-2 border-b text-sm font-medium',
+            'flex items-center justify-between px-4 py-2 text-sm font-medium',
             focusedPane === 'right' 
-              ? isDarkMode ? 'bg-kanagawa-ink4 text-kanagawa-white border-accent-blue' : 'bg-blue-50 text-blue-900 border-blue-200'
-              : isDarkMode ? 'bg-kanagawa-ink2 text-kanagawa-gray border-kanagawa-ink4' : 'bg-gray-50 text-gray-600 border-gray-200'
-          )}>
+              ? isDarkMode ? 'bg-kanagawa-ink4 text-kanagawa-white' : 'bg-blue-50 text-blue-900'
+              : isDarkMode ? 'bg-kanagawa-ink2 text-kanagawa-gray' : 'bg-gray-50 text-gray-600'
+          )}
+          style={{
+            borderBottom: 'none',
+            outline: 'none'
+          }}>
             <span className="truncate">{getDocumentTitle(rightPaneDocument)}</span>
             <div className="flex items-center space-x-2">
               {focusedPane === 'right' && (
