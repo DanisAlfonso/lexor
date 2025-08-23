@@ -312,6 +312,110 @@ class ListGroupWidget extends WidgetType {
   }
 }
 
+// Widget for rendering markdown tables
+class TableWidget extends WidgetType {
+  constructor(
+    private tableData: {
+      headers: string[];
+      alignments: ('left' | 'center' | 'right')[];
+      rows: string[][];
+    },
+    private isDark: boolean,
+    private lineHeight: number
+  ) {
+    super();
+  }
+
+  eq(other: TableWidget) {
+    return JSON.stringify(this.tableData) === JSON.stringify(other.tableData) &&
+           other.isDark === this.isDark &&
+           other.lineHeight === this.lineHeight;
+  }
+
+  toDOM() {
+    const table = document.createElement('table');
+    table.style.borderCollapse = 'collapse';
+    table.style.width = '100%';
+    table.style.margin = '0.5em 0';
+    table.style.fontSize = 'inherit';
+    table.style.fontFamily = 'inherit';
+    table.style.lineHeight = this.lineHeight.toString();
+    table.style.border = this.isDark ? '1px solid #363646' : '1px solid #e2e8f0';
+    table.style.backgroundColor = this.isDark ? '#1F1F28' : '#ffffff';
+    
+    // Create table header
+    if (this.tableData.headers.length > 0) {
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      headerRow.style.backgroundColor = this.isDark ? '#2A2A37' : '#f8f9fa';
+      
+      this.tableData.headers.forEach((header, index) => {
+        const th = document.createElement('th');
+        th.innerHTML = this.parseInlineMarkdown(header.trim());
+        th.style.padding = '8px 12px';
+        th.style.border = this.isDark ? '1px solid #363646' : '1px solid #e2e8f0';
+        th.style.fontWeight = '600';
+        th.style.color = this.isDark ? '#DCD7BA' : '#393836';
+        th.style.textAlign = this.tableData.alignments[index] || 'left';
+        headerRow.appendChild(th);
+      });
+      
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+    }
+    
+    // Create table body
+    if (this.tableData.rows.length > 0) {
+      const tbody = document.createElement('tbody');
+      
+      this.tableData.rows.forEach((row, rowIndex) => {
+        const tr = document.createElement('tr');
+        tr.style.backgroundColor = this.isDark 
+          ? (rowIndex % 2 === 0 ? '#1F1F28' : '#252535')
+          : (rowIndex % 2 === 0 ? '#ffffff' : '#f8f9fa');
+        
+        row.forEach((cell, cellIndex) => {
+          const td = document.createElement('td');
+          td.innerHTML = this.parseInlineMarkdown(cell.trim());
+          td.style.padding = '8px 12px';
+          td.style.border = this.isDark ? '1px solid #363646' : '1px solid #e2e8f0';
+          td.style.color = this.isDark ? '#DCD7BA' : '#393836';
+          td.style.textAlign = this.tableData.alignments[cellIndex] || 'left';
+          tr.appendChild(td);
+        });
+        
+        tbody.appendChild(tr);
+      });
+      
+      table.appendChild(tbody);
+    }
+    
+    return table;
+  }
+
+  private parseInlineMarkdown(text: string): string {
+    // Simple inline markdown parsing for table cells
+    return text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')              // Italic
+      .replace(/`(.*?)`/g, `<code style="background-color: ${this.isDark ? '#2A2A37' : '#f1f5f9'}; color: ${this.isDark ? '#ff9580' : '#c53030'}; padding: 2px 4px; border-radius: 3px; font-size: 0.9em;">$1</code>`) // Inline code
+      .replace(/~~(.*?)~~/g, '<del>$1</del>')            // Strikethrough
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" style="color: ${this.isDark ? '#a292a3' : '#a292a3'}; text-decoration: underline;">$1</a>`); // Links
+  }
+
+  get estimatedHeight() {
+    // Estimate height based on number of rows
+    const headerHeight = this.tableData.headers.length > 0 ? 32 : 0;
+    const rowHeight = 28;
+    const totalRows = this.tableData.rows.length;
+    return headerHeight + (totalRows * rowHeight) + 16; // +16 for margins
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+}
+
 // Widget for rendering fenced code blocks
 class CodeBlockWidget extends WidgetType {
   constructor(
@@ -660,15 +764,69 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
           
           // Process fenced code blocks using a simpler approach
           const processedCodeBlocks = new Set<number>();
+          const processedTables = new Set<number>();
           
           // Search for patterns in the document
           for (let i = 1; i <= doc.lines; i++) {
             const line = doc.line(i);
             const lineText = line.text;
             
-            // Skip if this line is part of an already processed code block
-            if (processedCodeBlocks.has(i)) {
+            // Skip if this line is part of an already processed code block or table
+            if (processedCodeBlocks.has(i) || processedTables.has(i)) {
               continue;
+            }
+            
+            // Check for markdown tables
+            if (lineText.includes('|')) {
+              const tableResult = this.tryParseTable(doc, i);
+              if (tableResult) {
+                const { tableData, startLine, endLine } = tableResult;
+                
+                // Mark all table lines as processed
+                for (let lineNum = startLine; lineNum <= endLine; lineNum++) {
+                  processedTables.add(lineNum);
+                }
+                
+                // Create table widget to replace the first line
+                const widget = new TableWidget(tableData, isDark, lineHeight);
+                const widgetDecoration = Decoration.replace({
+                  widget: widget
+                });
+                
+                const firstLine = doc.line(startLine);
+                decorations.push({ 
+                  from: firstLine.from, 
+                  to: firstLine.from + firstLine.text.length, 
+                  decoration: widgetDecoration 
+                });
+                
+                // Hide remaining table lines
+                for (let lineNum = startLine + 1; lineNum <= endLine; lineNum++) {
+                  const tableLine = doc.line(lineNum);
+                  
+                  // Collapse line height
+                  decorations.push({ 
+                    from: tableLine.from, 
+                    to: tableLine.from,
+                    decoration: Decoration.line({
+                      attributes: {
+                        style: 'height: 0; overflow: hidden; line-height: 0; font-size: 0; margin: 0; padding: 0; display: none;'
+                      }
+                    })
+                  });
+                  
+                  // Replace text content
+                  if (tableLine.text.length > 0) {
+                    decorations.push({ 
+                      from: tableLine.from, 
+                      to: tableLine.from + tableLine.text.length,
+                      decoration: Decoration.replace({})
+                    });
+                  }
+                }
+                
+                continue;
+              }
             }
             
             // Check for fenced code block start
@@ -916,6 +1074,71 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
               }
             }
           }
+        }
+
+        tryParseTable(doc: any, startLineNum: number): { tableData: any, startLine: number, endLine: number } | null {
+          const startLine = doc.line(startLineNum);
+          const headerLine = startLine.text.trim();
+          
+          // Must contain pipes to be a table
+          if (!headerLine.includes('|')) return null;
+          
+          // Look for alignment line (next line)
+          if (startLineNum >= doc.lines) return null;
+          const alignmentLine = doc.line(startLineNum + 1);
+          const alignmentText = alignmentLine.text.trim();
+          
+          // Alignment line should contain pipes and dashes
+          if (!alignmentText.includes('|') || !alignmentText.includes('-')) return null;
+          
+          // Parse headers
+          const headers = headerLine
+            .split('|')
+            .map(h => h.trim())
+            .filter(h => h.length > 0);
+          
+          // Parse alignments
+          const alignments = alignmentText
+            .split('|')
+            .map(a => a.trim())
+            .filter(a => a.length > 0)
+            .map(a => {
+              if (a.startsWith(':') && a.endsWith(':')) return 'center';
+              if (a.endsWith(':')) return 'right';
+              return 'left';
+            }) as ('left' | 'center' | 'right')[];
+          
+          // Headers and alignments should have same count
+          if (headers.length !== alignments.length) return null;
+          
+          // Parse table rows
+          const rows: string[][] = [];
+          let endLine = startLineNum + 1; // Start after alignment line
+          
+          for (let i = startLineNum + 2; i <= doc.lines; i++) {
+            const rowLine = doc.line(i);
+            const rowText = rowLine.text.trim();
+            
+            // Stop if line doesn't contain pipes or is empty
+            if (!rowText.includes('|')) break;
+            
+            const cells = rowText
+              .split('|')
+              .map(c => c.trim())
+              .filter(c => c.length > 0);
+            
+            // Skip if wrong number of cells
+            if (cells.length !== headers.length) break;
+            
+            rows.push(cells);
+            endLine = i;
+          }
+          
+          return {
+            tableData: { headers, alignments, rows },
+            startLine: startLineNum,
+            endLine: endLine
+          };
         }
       },
       {
