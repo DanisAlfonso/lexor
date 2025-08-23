@@ -116,7 +116,7 @@ export function Settings() {
                 'block text-sm font-medium mb-2',
                 isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
               )}>
-                Font Family
+                Font Family (Current: {fontFamily})
               </label>
               <select
                 value={fontFamily}
@@ -133,6 +133,13 @@ export function Settings() {
                 <option value="Consolas">Consolas</option>
                 <option value="JetBrains Mono">JetBrains Mono</option>
                 <option value="Fira Code">Fira Code</option>
+                <optgroup label="Monaspace">
+                  <option value="Monaspace Neon">Monaspace Neon</option>
+                  <option value="Monaspace Argon">Monaspace Argon</option>
+                  <option value="Monaspace Xenon">Monaspace Xenon</option>
+                  <option value="Monaspace Radon">Monaspace Radon</option>
+                  <option value="Monaspace Krypton">Monaspace Krypton</option>
+                </optgroup>
               </select>
             </div>
 

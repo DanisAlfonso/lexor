@@ -61,3 +61,4 @@ expo-env.d.ts
 
 # Desktop app specific
 lexor-desktop/assets/
+lexor-desktop/testing.md

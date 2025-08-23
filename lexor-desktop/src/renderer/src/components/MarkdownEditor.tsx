@@ -7,6 +7,25 @@ import { Extension } from '@codemirror/state';
 import { useAppStore } from '../stores/appStore';
 import { clsx } from 'clsx';
 
+// Helper function to format font family with proper quotes and fallbacks
+const formatFontFamily = (fontFamily: string) => {
+  const fontMap: { [key: string]: string } = {
+    'SF Mono': '"SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace',
+    'Monaco': '"Monaco", "SF Mono", "Consolas", "Liberation Mono", "Courier New", monospace',
+    'Consolas': '"Consolas", "SF Mono", "Monaco", "Liberation Mono", "Courier New", monospace',
+    'JetBrains Mono': '"JetBrains Mono", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace',
+    'Fira Code': '"Fira Code", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace',
+    // Monaspace fonts with appropriate fallbacks
+    'Monaspace Neon': '"Monaspace Neon", "JetBrains Mono", "Fira Code", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace',
+    'Monaspace Argon': '"Monaspace Argon", "JetBrains Mono", "Fira Code", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace',
+    'Monaspace Xenon': '"Monaspace Xenon", "JetBrains Mono", "Fira Code", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace',
+    'Monaspace Radon': '"Monaspace Radon", "JetBrains Mono", "Fira Code", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace',
+    'Monaspace Krypton': '"Monaspace Krypton", "JetBrains Mono", "Fira Code", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace'
+  };
+  
+  return fontMap[fontFamily] || `"${fontFamily}", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace`;
+};
+
 // Create custom Kanagawa theme for CodeMirror
 const createKanagawaTheme = (isDark: boolean, isFocusMode: boolean, fontSize: number, lineHeight: number, fontFamily: string) => {
   return EditorView.theme({
@@ -14,7 +33,7 @@ const createKanagawaTheme = (isDark: boolean, isFocusMode: boolean, fontSize: nu
       color: isDark ? '#ff0000' : '#393836', // BRIGHT RED to test if dark mode works
       backgroundColor: isDark ? '#000000' : '#f9fafb', // PURE BLACK to test if dark mode works
       fontSize: `${fontSize}px`,
-      fontFamily: fontFamily,
+      fontFamily: formatFontFamily(fontFamily),
       height: '100%'
     },
     '.cm-content': {
@@ -94,6 +113,7 @@ export function MarkdownEditor() {
     // Scrollbar preference
     showScrollbar
   } = useAppStore();
+
 
   const editorRef = useRef<any>(null);
   const rightEditorRef = useRef<any>(null);
@@ -240,6 +260,9 @@ export function MarkdownEditor() {
   
 
   // Create extensions array
+  const formattedFontFamily = formatFontFamily(fontFamily);
+  const finalFontSize = `${Math.round((fontSize * zoomLevel) / 100)}px`;
+  
   const extensions: Extension[] = [
     markdown(),
     EditorView.lineWrapping, // This is the key for proper responsive wrapping!
@@ -250,8 +273,8 @@ export function MarkdownEditor() {
         height: '100%',
         color: isDarkMode ? '#DCD7BA' : '#393836', // fujiWhite for dark, palette 0 for light
         backgroundColor: isDarkMode ? '#1F1F28' : '#f9fafb', // kanagawa dark bg, gray-50 for light
-        fontSize: `${Math.round((fontSize * zoomLevel) / 100)}px`,
-        fontFamily: fontFamily
+        fontSize: finalFontSize,
+        fontFamily: formattedFontFamily
       },
       '.cm-content': {
         padding: isFocusMode 
@@ -262,7 +285,9 @@ export function MarkdownEditor() {
         minHeight: '100%',
         backgroundColor: isDarkMode ? '#1F1F28' : '#f9fafb', // kanagawa background
         border: isDarkMode ? undefined : 'none !important',
-        outline: isDarkMode ? undefined : 'none !important' 
+        outline: isDarkMode ? undefined : 'none !important',
+        fontFamily: `${formattedFontFamily} !important`, // Force font family
+        fontSize: `${finalFontSize} !important` // Force font size
       },
       '&.cm-focused .cm-cursor': {
         borderLeftColor: isDarkMode ? '#c4b28a' : '#393836',
@@ -291,6 +316,8 @@ export function MarkdownEditor() {
         overflow: 'auto',
         lineHeight: lineHeight.toString(),
         backgroundColor: isDarkMode ? '#1F1F28' : '#f9fafb', // kanagawa background
+        fontFamily: `${formattedFontFamily} !important`,
+        fontSize: `${finalFontSize} !important`,
         // Hide scrollbars if setting is disabled
         ...(showScrollbar ? {} : {
           scrollbarWidth: 'none', // Firefox
@@ -305,7 +332,9 @@ export function MarkdownEditor() {
         backgroundColor: isDarkMode ? '#1F1F28' : '#f9fafb' // kanagawa background
       },
       '.cm-line': {
-        lineHeight: lineHeight.toString()
+        lineHeight: lineHeight.toString(),
+        fontFamily: `${formattedFontFamily} !important`,
+        fontSize: `${finalFontSize} !important`
       },
       '.cm-placeholder': {
         display: 'none' // Remove placeholder completely
@@ -320,6 +349,10 @@ export function MarkdownEditor() {
       '&.cm-editor, .cm-editor': {
         border: isDarkMode ? undefined : 'none !important',
         outline: isDarkMode ? undefined : 'none !important'
+      },
+      // Comprehensive font override for all text elements
+      '& *, &.cm-editor *, .cm-editor *': {
+        fontFamily: `${formattedFontFamily} !important`
       }
     }, { dark: isDarkMode })
   ];
@@ -360,8 +393,8 @@ export function MarkdownEditor() {
       }}
       style={{
         height: '100%',
-        fontSize: `${Math.round((fontSize * zoomLevel) / 100)}px`,
-        fontFamily: fontFamily,
+        fontSize: finalFontSize,
+        fontFamily: formattedFontFamily,
         opacity: isActive ? 1 : 0.8
       }}
     />
@@ -541,8 +574,8 @@ export function MarkdownEditor() {
               }}
               style={{
                 height: '100%',
-                fontSize: `${Math.round((fontSize * zoomLevel) / 100)}px`,
-                fontFamily: fontFamily
+                fontSize: finalFontSize,
+                fontFamily: formattedFontFamily
               }}
             />
           </div>
