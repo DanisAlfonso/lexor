@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, shell, protocol } from 'electron';
 import { join } from 'path';
 import { autoUpdater } from 'electron-updater';
 import { createMenu, updateMenuState } from './menu';
@@ -16,6 +16,7 @@ class LexorApp {
   private initializeApp(): void {
     // Handle app ready
     app.whenReady().then(() => {
+      this.setupProtocolHandler();
       this.createMainWindow();
       this.setupMenu();
       this.setupAutoUpdater();
@@ -97,6 +98,10 @@ class LexorApp {
     // App info
     ipcMain.handle('app:getVersion', () => app.getVersion());
     ipcMain.handle('app:getName', () => app.getName());
+    ipcMain.handle('app:getHomeDirectory', async () => {
+      const { homedir } = await import('os');
+      return homedir();
+    });
     
     // Window management
     ipcMain.handle('window:minimize', (event) => {
@@ -259,16 +264,78 @@ This is your personal Lexor Library - a special folder that syncs between your d
 - Use subfolders to organize your content
 - Generate flashcards from your notes
 
+## Media Support
+
+Lexor supports rich media in your markdown files! Try these examples:
+
+### Audio Files
+You can reference audio files from anywhere on your computer:
+- **Absolute paths**: \`/Users/yourname/Downloads/audio.mp3\`
+- **Tilde paths**: \`~/Downloads/audio.mp3\` 
+- **Relative paths**: \`audio.mp3\` (files in same folder)
+
+### Images
+Include images using standard markdown syntax:
+- **Absolute paths**: \`![Image](/Users/yourname/Pictures/photo.jpg)\`
+- **Tilde paths**: \`![Image](~/Pictures/photo.jpg)\`
+- **Relative paths**: \`![Image](photo.jpg)\`
+
+### Audio Player Options
+- **Inline**: \`[inline: pronunciation](audio.mp3)\` - Small button in text
+- **Block**: \`[audio: Full Player](audio.mp3)\` - Full controls
+
 ## Tips
 
 - Keep your most important documents in this library
 - Use meaningful folder names for organization  
 - The library stays in sync across all your devices
+- Reference your media files using absolute paths or tilde notation
 
 Happy writing!
 `;
+
+          // Create example markdown file with media examples
+          const examplesContent = `# Media Examples
+
+This file demonstrates how to use audio and images in your markdown files.
+
+## Audio Examples
+
+### Inline Audio Players
+The word "hello" [inline: pronunciation](~/Downloads/your-audio-file.mp3) can include inline audio.
+
+You can also use: [inline: sample](~/Music/song.mp3) for inline players in your text.
+
+### Block Audio Player
+For full controls, use the block format:
+
+[audio: Full Audio Player](~/Downloads/your-audio-file.mp3)
+
+## Image Examples
+
+### Regular Images
+![Sample Image](~/Pictures/your-image.jpg "Your image title")
+
+### Images with Absolute Paths
+![Another Image](/Users/yourname/Desktop/screenshot.png)
+
+## Getting Your Own Media
+
+1. **For Audio**: Place audio files (.mp3, .wav, .m4a) anywhere on your computer
+2. **For Images**: Use any image files (.jpg, .png, .gif) from your computer
+3. **Reference them**: Use absolute paths like \`/Users/yourname/...\` or tilde paths like \`~/...\`
+
+## Supported Formats
+
+- **Audio**: MP3, WAV, M4A, OGG
+- **Images**: JPG, PNG, GIF, WebP
+- **Paths**: Absolute (/Users/...), Tilde (~/...), or Relative (filename.ext)
+
+Happy creating!
+`;
           
           await writeFile(join(libraryPath, 'Welcome.md'), welcomeContent, 'utf-8');
+          await writeFile(join(libraryPath, 'Media Examples.md'), examplesContent, 'utf-8');
         }
         
         return libraryPath;
@@ -403,6 +470,15 @@ Happy writing!
     // Menu state management
     ipcMain.on('menu:updateState', (_, hasSelectedFile: boolean, currentView: string) => {
       updateMenuState(hasSelectedFile, currentView);
+    });
+  }
+
+  private setupProtocolHandler(): void {
+    // Register custom protocol for local file access
+    protocol.registerFileProtocol('lexor-file', (request, callback) => {
+      const url = request.url.substring('lexor-file://'.length);
+      const decodedPath = decodeURIComponent(url);
+      callback({ path: decodedPath });
     });
   }
 }

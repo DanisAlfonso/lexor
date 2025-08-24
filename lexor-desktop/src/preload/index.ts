@@ -7,6 +7,7 @@ const electronAPI = {
   app: {
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     getName: () => ipcRenderer.invoke('app:getName'),
+    getHomeDirectory: () => ipcRenderer.invoke('app:getHomeDirectory'),
   },
 
   // Window management

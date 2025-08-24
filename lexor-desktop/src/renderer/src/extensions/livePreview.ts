@@ -11,6 +11,87 @@ import { json } from '@codemirror/lang-json';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
+// Cache for home directory path
+let cachedHomeDir: string | null = null;
+
+// Initialize home directory cache
+async function initializeHomeDir() {
+  if (cachedHomeDir === null) {
+    try {
+      // Try to get from main process first (most reliable)
+      if (window.electronAPI?.app?.getHomeDirectory) {
+        cachedHomeDir = await window.electronAPI.app.getHomeDirectory();
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Got home directory from main process:', cachedHomeDir);
+        }
+      } else {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('electronAPI not available, using fallback');
+        }
+        // Fallback to hardcoded path for macOS
+        cachedHomeDir = '/Users/' + (process.env.USER || 'user');
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Failed to get home directory from main process, using fallback:', error);
+      }
+      cachedHomeDir = '/Users/' + (process.env.USER || 'user');
+    }
+  }
+  return cachedHomeDir;
+}
+
+// Helper function to convert file paths to custom protocol for media access
+function getMediaUrl(src: string): string {
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`getMediaUrl called with: "${src}"`);
+  }
+  
+  // If it's already a URL or relative path, return as-is
+  if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:') || src.startsWith('blob:')) {
+    return src;
+  }
+  
+  let absolutePath = src;
+  
+  // Handle tilde expansion for home directory
+  if (src.startsWith('~/')) {
+    // If cache is not initialized yet, try to refresh it
+    if (cachedHomeDir === null) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Home directory cache not initialized, trying to refresh...');
+      }
+      initializeHomeDir().then(() => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Home directory cache refreshed:', cachedHomeDir);
+        }
+      });
+    }
+    
+    // Use cached home directory or fallback
+    const homeDir = cachedHomeDir || '/Users/' + (process.env.USER || 'user');
+    absolutePath = src.replace('~', homeDir);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Tilde expansion: ${src} → ${absolutePath} (homeDir: ${homeDir})`);
+    }
+  }
+  
+  // If it's not an absolute path after tilde expansion, return as-is (relative path)
+  if (!absolutePath.startsWith('/')) {
+    return src;
+  }
+  
+  // Convert absolute file paths to custom protocol
+  const result = `lexor-file://${encodeURIComponent(absolutePath)}`;
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`Final conversion: ${absolutePath} → ${result}`);
+  }
+  return result;
+}
+
+// Initialize home directory cache when the module loads
+initializeHomeDir();
+
 // Widget for rendering heading elements
 class HeadingWidget extends WidgetType {
   constructor(
@@ -809,6 +890,665 @@ class EquationWidget extends WidgetType {
   }
 }
 
+// Widget for rendering images with professional features
+class ImageWidget extends WidgetType {
+  constructor(
+    private src: string,
+    private alt: string,
+    private title: string,
+    private isDark: boolean,
+    private lineHeight: number
+  ) {
+    super();
+  }
+
+  eq(other: ImageWidget) {
+    return other.src === this.src && 
+           other.alt === this.alt && 
+           other.title === this.title &&
+           other.isDark === this.isDark &&
+           other.lineHeight === this.lineHeight;
+  }
+
+  toDOM() {
+    const container = document.createElement('div');
+    container.style.display = 'block';
+    container.style.margin = '1.5em 0';
+    container.style.textAlign = 'center';
+    container.style.position = 'relative';
+    container.style.borderRadius = '12px';
+    container.style.overflow = 'hidden';
+    container.style.backgroundColor = this.isDark ? '#2A2A37' : '#f8f9fa';
+    container.style.border = this.isDark ? '1px solid #363646' : '1px solid #e2e8f0';
+    container.style.transition = 'all 0.3s ease';
+    container.style.cursor = 'pointer';
+
+    // Add hover effects for premium feel
+    container.addEventListener('mouseenter', () => {
+      container.style.transform = 'translateY(-2px)';
+      container.style.boxShadow = this.isDark 
+        ? '0 8px 32px rgba(0, 0, 0, 0.3)'
+        : '0 8px 32px rgba(0, 0, 0, 0.1)';
+    });
+
+    container.addEventListener('mouseleave', () => {
+      container.style.transform = 'translateY(0)';
+      container.style.boxShadow = 'none';
+    });
+
+    // Loading placeholder
+    const loadingDiv = document.createElement('div');
+    loadingDiv.style.display = 'flex';
+    loadingDiv.style.alignItems = 'center';
+    loadingDiv.style.justifyContent = 'center';
+    loadingDiv.style.padding = '3rem';
+    loadingDiv.style.color = this.isDark ? '#727169' : '#6b7280';
+    loadingDiv.innerHTML = `
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+        <div style="width: 24px; height: 24px; border: 2px solid currentColor; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <span style="font-size: 0.875rem;">Loading image...</span>
+      </div>
+    `;
+
+    // Add CSS animation for loading spinner
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+
+    container.appendChild(loadingDiv);
+
+    // Create the actual image
+    const img = document.createElement('img');
+    img.src = getMediaUrl(this.src);
+    img.alt = this.alt;
+    img.title = this.title;
+    img.style.maxWidth = '100%';
+    img.style.height = 'auto';
+    img.style.display = 'none';
+    img.style.borderRadius = '12px';
+    img.style.transition = 'opacity 0.3s ease';
+
+    // Professional image loading with error handling
+    img.onload = () => {
+      loadingDiv.remove();
+      img.style.display = 'block';
+      img.style.opacity = '0';
+      container.appendChild(img);
+      
+      // Smooth fade-in animation
+      requestAnimationFrame(() => {
+        img.style.opacity = '1';
+      });
+
+      // Add image metadata overlay for premium experience
+      if (this.title || this.alt) {
+        const overlay = document.createElement('div');
+        overlay.style.position = 'absolute';
+        overlay.style.bottom = '0';
+        overlay.style.left = '0';
+        overlay.style.right = '0';
+        overlay.style.background = this.isDark 
+          ? 'linear-gradient(transparent, rgba(31, 31, 40, 0.9))'
+          : 'linear-gradient(transparent, rgba(248, 249, 250, 0.9))';
+        overlay.style.color = this.isDark ? '#DCD7BA' : '#393836';
+        overlay.style.padding = '1rem';
+        overlay.style.fontSize = '0.875rem';
+        overlay.style.lineHeight = '1.4';
+        overlay.style.opacity = '0';
+        overlay.style.transition = 'opacity 0.3s ease';
+
+        if (this.title) {
+          const titleElement = document.createElement('div');
+          titleElement.textContent = this.title;
+          titleElement.style.fontWeight = '600';
+          titleElement.style.marginBottom = '0.25rem';
+          overlay.appendChild(titleElement);
+        }
+
+        if (this.alt && this.alt !== this.title) {
+          const altElement = document.createElement('div');
+          altElement.textContent = this.alt;
+          altElement.style.opacity = '0.8';
+          overlay.appendChild(altElement);
+        }
+
+        container.appendChild(overlay);
+
+        // Show overlay on hover
+        container.addEventListener('mouseenter', () => {
+          overlay.style.opacity = '1';
+        });
+
+        container.addEventListener('mouseleave', () => {
+          overlay.style.opacity = '0';
+        });
+      }
+    };
+
+    // Professional error handling
+    img.onerror = () => {
+      loadingDiv.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 2rem;">
+          <div style="width: 48px; height: 48px; border-radius: 50%; background: ${this.isDark ? '#2A2A37' : '#f3f4f6'}; display: flex; align-items: center; justify-content: center;">
+            <svg width="24" height="24" fill="none" stroke="${this.isDark ? '#e85d75' : '#dc2626'}" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.732 18.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-weight: 600; color: ${this.isDark ? '#e85d75' : '#dc2626'}; margin-bottom: 0.5rem;">
+              Failed to load image
+            </div>
+            <div style="font-size: 0.875rem; color: ${this.isDark ? '#727169' : '#6b7280'}; margin-bottom: 1rem;">
+              ${this.src}
+            </div>
+            <button style="
+              padding: 0.5rem 1rem;
+              background: ${this.isDark ? '#363646' : '#e5e7eb'};
+              border: none;
+              border-radius: 6px;
+              color: ${this.isDark ? '#DCD7BA' : '#393836'};
+              cursor: pointer;
+              font-size: 0.875rem;
+              transition: all 0.2s ease;
+            " onclick="this.parentElement.parentElement.parentElement.querySelector('img').src = this.parentElement.parentElement.parentElement.querySelector('img').src">
+              Retry
+            </button>
+          </div>
+        </div>
+      `;
+    };
+
+    // Enhanced accessibility
+    container.setAttribute('role', 'img');
+    container.setAttribute('aria-label', this.alt || 'Image');
+    container.setAttribute('tabindex', '0');
+
+    // Keyboard navigation
+    container.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this.openImageModal(img, this.title, this.alt);
+      }
+    });
+
+    // Click to open full-size modal
+    container.addEventListener('click', () => {
+      this.openImageModal(img, this.title, this.alt);
+    });
+
+    return container;
+  }
+
+  private openImageModal(img: HTMLImageElement, title: string, alt: string) {
+    // Create premium modal overlay
+    const modal = document.createElement('div');
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
+    modal.style.zIndex = '10000';
+    modal.style.display = 'flex';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+    modal.style.padding = '2rem';
+    modal.style.cursor = 'pointer';
+    modal.style.opacity = '0';
+    modal.style.transition = 'opacity 0.3s ease';
+
+    const modalImg = document.createElement('img');
+    modalImg.src = img.src;
+    modalImg.style.maxWidth = '90%';
+    modalImg.style.maxHeight = '90%';
+    modalImg.style.borderRadius = '12px';
+    modalImg.style.boxShadow = '0 20px 60px rgba(0, 0, 0, 0.5)';
+    modalImg.style.cursor = 'default';
+    modalImg.style.transform = 'scale(0.8)';
+    modalImg.style.transition = 'transform 0.3s ease';
+
+    // Prevent modal from closing when clicking the image
+    modalImg.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    modal.appendChild(modalImg);
+
+    // Close modal on click, escape key, or outside click
+    modal.addEventListener('click', () => {
+      modal.style.opacity = '0';
+      modalImg.style.transform = 'scale(0.8)';
+      setTimeout(() => modal.remove(), 300);
+    });
+
+    document.addEventListener('keydown', function escapeHandler(e) {
+      if (e.key === 'Escape') {
+        modal.click();
+        document.removeEventListener('keydown', escapeHandler);
+      }
+    });
+
+    document.body.appendChild(modal);
+
+    // Smooth animation
+    requestAnimationFrame(() => {
+      modal.style.opacity = '1';
+      modalImg.style.transform = 'scale(1)';
+    });
+  }
+
+  get estimatedHeight() {
+    // Provide a reasonable default height estimate
+    return 200;
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+}
+
+// Widget for rendering inline audio players (text-height size)
+class InlineAudioWidget extends WidgetType {
+  constructor(
+    private src: string,
+    private title: string,
+    private isDark: boolean
+  ) {
+    super();
+  }
+
+  eq(other: InlineAudioWidget) {
+    return other.src === this.src && 
+           other.title === this.title &&
+           other.isDark === this.isDark;
+  }
+
+  toDOM() {
+    const container = document.createElement('span');
+    container.style.display = 'inline-flex';
+    container.style.alignItems = 'center';
+    container.style.gap = '0.25rem';
+    container.style.margin = '0 0.125rem';
+    container.style.verticalAlign = 'baseline';
+    container.style.position = 'relative';
+
+    // Audio element (hidden)
+    const audio = document.createElement('audio');
+    audio.src = getMediaUrl(this.src);
+    audio.preload = 'metadata';
+    audio.style.display = 'none';
+
+    // Compact play button (rounded square, text height)
+    const playButton = document.createElement('button');
+    playButton.style.width = '1.6em';
+    playButton.style.height = '1.2em';
+    playButton.style.borderRadius = '0.25em'; // Slightly larger rounded corners
+    playButton.style.border = 'none';
+    playButton.style.background = this.isDark 
+      ? 'linear-gradient(135deg, #8ea49e 0%, #7a9188 100%)'
+      : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+    playButton.style.color = 'white';
+    playButton.style.cursor = 'pointer';
+    playButton.style.display = 'inline-flex';
+    playButton.style.alignItems = 'center';
+    playButton.style.justifyContent = 'center';
+    playButton.style.transition = 'all 0.2s ease';
+    playButton.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.2)';
+    playButton.style.fontSize = '0.75em'; // Slightly larger icons
+    playButton.style.verticalAlign = 'baseline';
+
+    // Tiny play/pause icons
+    const playIcon = `<svg width="0.7em" height="0.7em" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
+    const pauseIcon = `<svg width="0.7em" height="0.7em" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>`;
+    
+    playButton.innerHTML = playIcon;
+
+    // Minimal hover effect
+    playButton.addEventListener('mouseenter', () => {
+      playButton.style.transform = 'scale(1.1)';
+      playButton.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.3)';
+    });
+
+    playButton.addEventListener('mouseleave', () => {
+      playButton.style.transform = 'scale(1)';
+      playButton.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.2)';
+    });
+
+    // Optional: tiny progress indicator (visual feedback)
+    const progressDot = document.createElement('span');
+    progressDot.style.width = '3px';
+    progressDot.style.height = '3px';
+    progressDot.style.borderRadius = '50%';
+    progressDot.style.backgroundColor = this.isDark ? '#8ea49e' : '#3b82f6';
+    progressDot.style.opacity = '0';
+    progressDot.style.transition = 'opacity 0.3s ease';
+    progressDot.style.marginLeft = '2px';
+
+    container.appendChild(audio);
+    container.appendChild(playButton);
+    container.appendChild(progressDot);
+
+    // Audio event handlers
+    let isPlaying = false;
+
+    playButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (isPlaying) {
+        audio.pause();
+      } else {
+        // Pause any other playing audio
+        document.querySelectorAll('audio').forEach(otherAudio => {
+          if (otherAudio !== audio && !otherAudio.paused) {
+            otherAudio.pause();
+          }
+        });
+        
+        audio.play().catch((error) => {
+          console.error('Error playing audio:', error);
+          this.showError(playButton);
+        });
+      }
+    });
+
+    audio.addEventListener('play', () => {
+      isPlaying = true;
+      playButton.innerHTML = pauseIcon;
+      progressDot.style.opacity = '1';
+      
+      // Update all other play buttons to show play state
+      document.querySelectorAll('audio').forEach(otherAudio => {
+        if (otherAudio !== audio && !otherAudio.paused) {
+          otherAudio.pause();
+        }
+      });
+    });
+
+    audio.addEventListener('pause', () => {
+      isPlaying = false;
+      playButton.innerHTML = playIcon;
+      progressDot.style.opacity = '0';
+    });
+
+    audio.addEventListener('ended', () => {
+      isPlaying = false;
+      playButton.innerHTML = playIcon;
+      progressDot.style.opacity = '0';
+    });
+
+    audio.addEventListener('error', () => {
+      this.showError(playButton);
+    });
+
+    // Enhanced accessibility
+    playButton.setAttribute('aria-label', `Play audio: ${this.title || 'audio clip'}`);
+    playButton.setAttribute('title', this.title || 'Play audio');
+    container.setAttribute('role', 'button');
+
+    return container;
+  }
+
+  private showError(button: HTMLElement) {
+    const originalBg = button.style.background;
+    button.style.background = this.isDark ? '#e85d75' : '#dc2626';
+    button.innerHTML = `<svg width="0.7em" height="0.7em" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>`;
+    
+    setTimeout(() => {
+      button.style.background = originalBg;
+      button.innerHTML = `<svg width="0.7em" height="0.7em" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
+    }, 2000);
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+}
+
+// Widget for rendering block audio players (full controls)
+class BlockAudioWidget extends WidgetType {
+  constructor(
+    private src: string,
+    private title: string,
+    private isDark: boolean,
+    private lineHeight: number
+  ) {
+    super();
+  }
+
+  eq(other: BlockAudioWidget) {
+    return other.src === this.src && 
+           other.title === this.title &&
+           other.isDark === this.isDark &&
+           other.lineHeight === this.lineHeight;
+  }
+
+  toDOM() {
+    const container = document.createElement('div');
+    container.style.display = 'block';
+    container.style.margin = '0.75em 0';
+    container.style.padding = '0.75rem';
+    container.style.backgroundColor = this.isDark ? '#2A2A37' : '#f8f9fa';
+    container.style.border = this.isDark ? '1px solid #363646' : '1px solid #e2e8f0';
+    container.style.borderRadius = '12px';
+    container.style.transition = 'all 0.3s ease';
+    container.style.position = 'relative';
+
+    // Premium gradient background
+    container.style.background = this.isDark 
+      ? 'linear-gradient(135deg, #2A2A37 0%, #252535 100%)'
+      : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)';
+
+    // Audio element (hidden)
+    const audio = document.createElement('audio');
+    audio.src = getMediaUrl(this.src);
+    audio.preload = 'metadata';
+    audio.style.display = 'none';
+
+    // Custom audio controls container
+    const controlsContainer = document.createElement('div');
+    controlsContainer.style.display = 'flex';
+    controlsContainer.style.alignItems = 'center';
+    controlsContainer.style.gap = '0.75rem';
+
+    // Play/Pause button with premium styling (smaller)
+    const playButton = document.createElement('button');
+    playButton.style.width = '36px';
+    playButton.style.height = '36px';
+    playButton.style.borderRadius = '50%';
+    playButton.style.border = 'none';
+    playButton.style.background = this.isDark 
+      ? 'linear-gradient(135deg, #8ea49e 0%, #7a9188 100%)'
+      : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+    playButton.style.color = 'white';
+    playButton.style.cursor = 'pointer';
+    playButton.style.display = 'flex';
+    playButton.style.alignItems = 'center';
+    playButton.style.justifyContent = 'center';
+    playButton.style.transition = 'all 0.2s ease';
+    playButton.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.15)';
+
+    // Play icon SVG (smaller)
+    const playIcon = `
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M8 5v14l11-7z"/>
+      </svg>
+    `;
+
+    // Pause icon SVG (smaller)
+    const pauseIcon = `
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+      </svg>
+    `;
+
+    playButton.innerHTML = playIcon;
+
+    // Button hover effects
+    playButton.addEventListener('mouseenter', () => {
+      playButton.style.transform = 'scale(1.05)';
+      playButton.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.2)';
+    });
+
+    playButton.addEventListener('mouseleave', () => {
+      playButton.style.transform = 'scale(1)';
+      playButton.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+    });
+
+    // Progress container (more compact)
+    const progressContainer = document.createElement('div');
+    progressContainer.style.flex = '1';
+    progressContainer.style.display = 'flex';
+    progressContainer.style.flexDirection = 'column';
+    progressContainer.style.gap = '0.375rem';
+
+    // Title and duration info (smaller font)
+    const infoContainer = document.createElement('div');
+    infoContainer.style.display = 'flex';
+    infoContainer.style.justifyContent = 'space-between';
+    infoContainer.style.alignItems = 'center';
+    infoContainer.style.fontSize = '0.8125rem';
+
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = this.title || 'Audio File';
+    titleSpan.style.fontWeight = '600';
+    titleSpan.style.color = this.isDark ? '#DCD7BA' : '#393836';
+
+    const durationSpan = document.createElement('span');
+    durationSpan.textContent = '0:00 / 0:00';
+    durationSpan.style.color = this.isDark ? '#727169' : '#6b7280';
+    durationSpan.style.fontFamily = 'SF Mono, Monaco, Consolas, Liberation Mono, Courier New, monospace';
+
+    infoContainer.appendChild(titleSpan);
+    infoContainer.appendChild(durationSpan);
+
+    // Progress bar (slightly smaller)
+    const progressBar = document.createElement('div');
+    progressBar.style.width = '100%';
+    progressBar.style.height = '4px';
+    progressBar.style.backgroundColor = this.isDark ? '#363646' : '#e5e7eb';
+    progressBar.style.borderRadius = '2px';
+    progressBar.style.cursor = 'pointer';
+    progressBar.style.position = 'relative';
+    progressBar.style.overflow = 'hidden';
+
+    const progressFill = document.createElement('div');
+    progressFill.style.width = '0%';
+    progressFill.style.height = '100%';
+    progressFill.style.background = this.isDark 
+      ? 'linear-gradient(90deg, #8ea49e 0%, #7a9188 100%)'
+      : 'linear-gradient(90deg, #3b82f6 0%, #2563eb 100%)';
+    progressFill.style.borderRadius = '2px';
+    progressFill.style.transition = 'width 0.1s ease';
+
+    progressBar.appendChild(progressFill);
+
+    progressContainer.appendChild(infoContainer);
+    progressContainer.appendChild(progressBar);
+
+    controlsContainer.appendChild(playButton);
+    controlsContainer.appendChild(progressContainer);
+
+    container.appendChild(audio);
+    container.appendChild(controlsContainer);
+
+    // Audio event handlers
+    let isPlaying = false;
+
+    playButton.addEventListener('click', () => {
+      if (isPlaying) {
+        audio.pause();
+      } else {
+        audio.play().catch((error) => {
+          console.error('Error playing audio:', error);
+          this.showErrorState(container, 'Unable to play audio file');
+        });
+      }
+    });
+
+    audio.addEventListener('play', () => {
+      isPlaying = true;
+      playButton.innerHTML = pauseIcon;
+    });
+
+    audio.addEventListener('pause', () => {
+      isPlaying = false;
+      playButton.innerHTML = playIcon;
+    });
+
+    audio.addEventListener('loadedmetadata', () => {
+      this.updateDuration(durationSpan, 0, audio.duration);
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      const progress = (audio.currentTime / audio.duration) * 100;
+      progressFill.style.width = `${progress}%`;
+      this.updateDuration(durationSpan, audio.currentTime, audio.duration);
+    });
+
+    audio.addEventListener('error', () => {
+      this.showErrorState(container, 'Error loading audio file');
+    });
+
+    // Progress bar click handler
+    progressBar.addEventListener('click', (e) => {
+      const rect = progressBar.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const percentage = clickX / rect.width;
+      audio.currentTime = percentage * audio.duration;
+    });
+
+    // Set default volume (users can use system volume)
+    audio.volume = 0.8;
+
+    // Enhanced accessibility
+    container.setAttribute('role', 'region');
+    container.setAttribute('aria-label', `Audio player: ${this.title || 'Audio file'}`);
+    playButton.setAttribute('aria-label', 'Play/Pause');
+    progressBar.setAttribute('aria-label', 'Seek audio position');
+
+    return container;
+  }
+
+  private updateDuration(element: HTMLElement, current: number, total: number) {
+    const formatTime = (seconds: number) => {
+      if (isNaN(seconds)) return '0:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    element.textContent = `${formatTime(current)} / ${formatTime(total)}`;
+  }
+
+  private showErrorState(container: HTMLElement, message: string) {
+    container.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 1rem; padding: 1rem; color: ${this.isDark ? '#e85d75' : '#dc2626'};">
+        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.732 18.5c-.77.833.192 2.5 1.732 2.5z" />
+        </svg>
+        <div>
+          <div style="font-weight: 600; margin-bottom: 0.25rem;">${message}</div>
+          <div style="font-size: 0.875rem; opacity: 0.8;">${this.src}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  get estimatedHeight() {
+    return 80;
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+}
+
 // State field for toggling live preview mode
 import { StateField, StateEffect } from '@codemirror/state';
 
@@ -954,11 +1694,15 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
             }
           });
 
-          // Add regex-based detection for strikethrough, equations, list items, and fenced code blocks
+          // Add regex-based detection for strikethrough, equations, media, list items, and fenced code blocks
           const doc = view.state.doc;
           const strikethroughRegex = /~~([^~\n]+)~~/g;
           const inlineMathRegex = /(?<!\$)\$(?!\$)([^$\n]+?)\$(?!\$)/g;  // Single $ for inline math
           const blockMathRegex = /^\s*\$\$\s*\n?([\s\S]*?)\n?\s*\$\$\s*$/gm; // Block math $$...$$
+          const imageRegex = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g; // ![alt](src "title")
+          const blockAudioRegex = /\[audio:\s*([^\]]*)\]\(([^)]+)\)/gi; // [audio: title](src) - Block player
+          const inlineAudioRegex = /\[inline:\s*([^\]]*)\]\(([^)]+)\)/gi; // [inline: title](src) - Inline player
+          const audioLinkRegex = /\[([^\]]*)\]\(([^)]+\.(?:mp3|wav|ogg|m4a|aac|flac|wma))\)/gi; // Links to audio files
           const unorderedListRegex = /^(\s*)([-*+])\s+(.+)$/;
           const orderedListRegex = /^(\s*)(\d+)\.\s+(.+)$/;
           const taskListRegex = /^(\s*)([-*+])\s+\[([ x])\]\s+(.+)$/;
@@ -968,6 +1712,21 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
           const processedCodeBlocks = new Set<number>();
           const processedTables = new Set<number>();
           const processedBlockMath = new Set<number>();
+          
+          // Track processed ranges to avoid conflicts
+          const processedRanges: { from: number; to: number }[] = [];
+          
+          const isRangeProcessed = (from: number, to: number): boolean => {
+            return processedRanges.some(range => 
+              (from >= range.from && from < range.to) || 
+              (to > range.from && to <= range.to) ||
+              (from <= range.from && to >= range.to)
+            );
+          };
+          
+          const markRangeProcessed = (from: number, to: number) => {
+            processedRanges.push({ from, to });
+          };
           
           // Search for patterns in the document
           for (let i = 1; i <= doc.lines; i++) {
@@ -1248,6 +2007,86 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
               }
             }
             inlineMathRegex.lastIndex = 0;
+            
+            // Check for images ![alt](src "title")
+            let imageMatch;
+            while ((imageMatch = imageRegex.exec(lineText)) !== null) {
+              const matchStart = line.from + imageMatch.index;
+              const matchEnd = matchStart + imageMatch[0].length;
+              const alt = imageMatch[1] || '';
+              const src = imageMatch[2];
+              const title = imageMatch[3] || '';
+              
+              if (src) {
+                const widget = new ImageWidget(src, alt, title, isDark, lineHeight);
+                const decoration = Decoration.replace({
+                  widget: widget
+                });
+                
+                decorations.push({ from: matchStart, to: matchEnd, decoration });
+              }
+            }
+            imageRegex.lastIndex = 0;
+            
+            // Check for block audio syntax [audio: title](src) - BLOCK (process FIRST)
+            let blockAudioMatch;
+            while ((blockAudioMatch = blockAudioRegex.exec(lineText)) !== null) {
+              const matchStart = line.from + blockAudioMatch.index;
+              const matchEnd = matchStart + blockAudioMatch[0].length;
+              const title = blockAudioMatch[1] || '';
+              const src = blockAudioMatch[2];
+              
+              if (src && !isRangeProcessed(matchStart, matchEnd)) {
+                const widget = new BlockAudioWidget(src, title, isDark, lineHeight);
+                const decoration = Decoration.replace({
+                  widget: widget
+                });
+                
+                decorations.push({ from: matchStart, to: matchEnd, decoration });
+                markRangeProcessed(matchStart, matchEnd);
+              }
+            }
+            blockAudioRegex.lastIndex = 0;
+            
+            // Check for inline audio syntax - INLINE
+            let inlineAudioMatch;
+            while ((inlineAudioMatch = inlineAudioRegex.exec(lineText)) !== null) {
+              const matchStart = line.from + inlineAudioMatch.index;
+              const matchEnd = matchStart + inlineAudioMatch[0].length;
+              const title = inlineAudioMatch[1] || '';
+              const src = inlineAudioMatch[2];
+              
+              if (src && !isRangeProcessed(matchStart, matchEnd)) {
+                const widget = new InlineAudioWidget(src, title, isDark);
+                const decoration = Decoration.replace({
+                  widget: widget
+                });
+                
+                decorations.push({ from: matchStart, to: matchEnd, decoration });
+                markRangeProcessed(matchStart, matchEnd);
+              }
+            }
+            inlineAudioRegex.lastIndex = 0;
+            
+            // Check for audio file links [title](file.mp3) - BLOCK
+            let audioLinkMatch;
+            while ((audioLinkMatch = audioLinkRegex.exec(lineText)) !== null) {
+              const matchStart = line.from + audioLinkMatch.index;
+              const matchEnd = matchStart + audioLinkMatch[0].length;
+              const title = audioLinkMatch[1] || '';
+              const src = audioLinkMatch[2];
+              
+              if (src && !isRangeProcessed(matchStart, matchEnd)) {
+                const widget = new BlockAudioWidget(src, title, isDark, lineHeight);
+                const decoration = Decoration.replace({
+                  widget: widget
+                });
+                
+                decorations.push({ from: matchStart, to: matchEnd, decoration });
+                markRangeProcessed(matchStart, matchEnd);
+              }
+            }
+            audioLinkRegex.lastIndex = 0;
             
             // Skip individual list item processing - we'll group them later
             const unorderedMatch = lineText.match(unorderedListRegex);
