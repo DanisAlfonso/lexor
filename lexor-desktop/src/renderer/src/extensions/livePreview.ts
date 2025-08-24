@@ -43,9 +43,6 @@ async function initializeHomeDir() {
 
 // Helper function to convert file paths to custom protocol for media access
 function getMediaUrl(src: string): string {
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`getMediaUrl called with: "${src}"`);
-  }
   
   // If it's already a URL, return as-is
   if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:') || src.startsWith('blob:')) {
@@ -83,30 +80,19 @@ function getMediaUrl(src: string): string {
       if (currentDoc) {
         const currentDir = currentDoc.substring(0, currentDoc.lastIndexOf('/'));
         absolutePath = `${currentDir}/${src}`;
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`Relative path resolution: ${src} + ${currentDir} → ${absolutePath}`);
-        }
       }
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Could not resolve relative path, no current document available');
-      }
+      // Could not resolve relative path, no current document available
     }
   }
   
   // If still not an absolute path, return as-is
   if (!absolutePath.startsWith('/')) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`Could not resolve path: ${src}, returning as-is`);
-    }
     return src;
   }
   
   // Convert absolute file paths to custom protocol
   const result = `lexor-file://${encodeURIComponent(absolutePath)}`;
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`Final conversion: ${absolutePath} → ${result}`);
-  }
   return result;
 }
 
@@ -133,7 +119,9 @@ class HeadingWidget extends WidgetType {
 
   toDOM() {
     const element = document.createElement(`h${this.level}`);
-    element.textContent = this.text;
+    
+    // Parse inline elements (including inline audio) instead of using plain text
+    this.parseInlineElementsIntoDOM(element, this.text);
     
     // Apply consistent styling that matches the editor theme
     const baseStyles = {
@@ -169,6 +157,53 @@ class HeadingWidget extends WidgetType {
     });
 
     return element;
+  }
+
+  private parseInlineElementsIntoDOM(container: HTMLElement, text: string): void {
+    // Parse inline elements including inline audio players
+    const inlineAudioRegex = /\[inline:\s*([^\]]*)\]\(([^)]+)\)/gi;
+    
+    let lastIndex = 0;
+    let match;
+    
+    inlineAudioRegex.lastIndex = 0;
+    
+    while ((match = inlineAudioRegex.exec(text)) !== null) {
+      // Add text before the match
+      if (match.index > lastIndex) {
+        const textBefore = text.substring(lastIndex, match.index);
+        if (textBefore) {
+          const textNode = document.createTextNode(textBefore);
+          container.appendChild(textNode);
+        }
+      }
+      
+      // Create inline audio widget using the existing InlineAudioWidget class
+      const title = match[1] || '';
+      const src = match[2];
+      
+      if (src) {
+        const inlineAudioWidget = new InlineAudioWidget(src, title, this.isDark);
+        const audioElement = inlineAudioWidget.toDOM();
+        container.appendChild(audioElement);
+      }
+      
+      lastIndex = inlineAudioRegex.lastIndex;
+    }
+    
+    // Add remaining text after the last match
+    if (lastIndex < text.length) {
+      const remainingText = text.substring(lastIndex);
+      if (remainingText) {
+        const textNode = document.createTextNode(remainingText);
+        container.appendChild(textNode);
+      }
+    }
+    
+    // If no matches were found, just add the plain text
+    if (lastIndex === 0) {
+      container.textContent = text;
+    }
   }
 
   get estimatedHeight() {
