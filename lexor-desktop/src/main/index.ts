@@ -3,10 +3,12 @@ import { join } from 'path';
 import { autoUpdater } from 'electron-updater';
 import { createMenu, updateMenuState } from './menu';
 import { WindowManager } from './windows';
+import { watch, FSWatcher } from 'chokidar';
 
 class LexorApp {
   private windowManager: WindowManager;
   private isDevelopment = process.env.NODE_ENV === 'development';
+  private folderWatchers: Map<string, FSWatcher> = new Map();
 
   constructor() {
     this.windowManager = new WindowManager();
@@ -34,6 +36,18 @@ class LexorApp {
       if (process.platform !== 'darwin') {
         app.quit();
       }
+    });
+
+    // Clean up watchers on app quit
+    app.on('before-quit', async () => {
+      for (const [path, watcher] of this.folderWatchers.entries()) {
+        try {
+          await watcher.close();
+        } catch (error) {
+          console.error(`Failed to close watcher for ${path}:`, error);
+        }
+      }
+      this.folderWatchers.clear();
     });
 
     // Security: Prevent new window creation
@@ -513,6 +527,73 @@ Happy creating!
     // Menu state management
     ipcMain.on('menu:updateState', (_, hasSelectedFile: boolean, currentView: string) => {
       updateMenuState(hasSelectedFile, currentView);
+    });
+
+    // File watching
+    ipcMain.handle('folder:watchDirectory', async (event, folderPath: string) => {
+      try {
+        // Stop existing watcher for this path if it exists
+        if (this.folderWatchers.has(folderPath)) {
+          await this.folderWatchers.get(folderPath)!.close();
+          this.folderWatchers.delete(folderPath);
+        }
+
+        // Create new watcher
+        const watcher = watch(folderPath, {
+          ignored: /(^|[\/\\])\../, // Ignore dotfiles
+          persistent: true,
+          ignoreInitial: true, // Don't emit events for existing files
+          depth: 1 // Only watch direct children, not deeply nested
+        });
+
+        // Set up event listeners
+        watcher
+          .on('add', (filePath) => {
+            event.sender.send('folder:fileAdded', filePath);
+          })
+          .on('addDir', (dirPath) => {
+            event.sender.send('folder:folderAdded', dirPath);
+          })
+          .on('unlink', (filePath) => {
+            event.sender.send('folder:fileRemoved', filePath);
+          })
+          .on('unlinkDir', (dirPath) => {
+            event.sender.send('folder:folderRemoved', dirPath);
+          })
+          .on('change', (filePath) => {
+            event.sender.send('folder:fileChanged', filePath);
+          });
+
+        this.folderWatchers.set(folderPath, watcher);
+        return { success: true };
+      } catch (error: any) {
+        console.error('Failed to watch directory:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('folder:unwatchDirectory', async (_, folderPath: string) => {
+      try {
+        if (this.folderWatchers.has(folderPath)) {
+          await this.folderWatchers.get(folderPath)!.close();
+          this.folderWatchers.delete(folderPath);
+        }
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('folder:unwatchAll', async () => {
+      try {
+        for (const [path, watcher] of this.folderWatchers.entries()) {
+          await watcher.close();
+        }
+        this.folderWatchers.clear();
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
     });
   }
 

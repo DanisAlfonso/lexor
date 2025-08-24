@@ -497,10 +497,103 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     return () => window.removeEventListener('createFolderInLibrary', handleCreateFolderInLibrary);
   }, [libraryFolder]);
 
-  // Load tree data when current folder changes
+  // Load tree data when current folder changes and set up file watching
   React.useEffect(() => {
     if (isTreeView && currentFolder) {
       loadTreeData(currentFolder);
+    }
+
+    // Set up file system watching for the current folder
+    if (currentFolder && window.electronAPI?.folder) {
+      window.electronAPI.folder.watchDirectory(currentFolder);
+
+      // Set up event listeners for file system changes
+      const cleanup = [
+        window.electronAPI.folder.onFileAdded((filePath: string) => {
+          // Check if the added file is in the current directory we're viewing
+          const fileDir = filePath.split('/').slice(0, -1).join('/');
+          if (fileDir === currentFolder) {
+            // Refresh the folder contents
+            if (isTreeView) {
+              loadTreeData(currentFolder);
+            } else {
+              loadFolderContents(currentFolder);
+            }
+          }
+        }),
+
+        window.electronAPI.folder.onFolderAdded((dirPath: string) => {
+          // Check if the added folder is in the current directory we're viewing
+          const parentDir = dirPath.split('/').slice(0, -1).join('/');
+          if (parentDir === currentFolder) {
+            // Refresh the folder contents
+            if (isTreeView) {
+              loadTreeData(currentFolder);
+            } else {
+              loadFolderContents(currentFolder);
+            }
+          }
+        }),
+
+        window.electronAPI.folder.onFileRemoved((filePath: string) => {
+          // Check if the removed file was in the current directory we're viewing
+          const fileDir = filePath.split('/').slice(0, -1).join('/');
+          if (fileDir === currentFolder) {
+            // Refresh the folder contents
+            if (isTreeView) {
+              loadTreeData(currentFolder);
+            } else {
+              loadFolderContents(currentFolder);
+            }
+
+            // If the removed file was currently open, close it
+            if (currentDocument === filePath) {
+              setCurrentDocument(null);
+              setDocumentContent('');
+              setDocumentModified(false);
+            }
+          }
+        }),
+
+        window.electronAPI.folder.onFolderRemoved((dirPath: string) => {
+          // Check if the removed folder was in the current directory we're viewing
+          const parentDir = dirPath.split('/').slice(0, -1).join('/');
+          if (parentDir === currentFolder) {
+            // Refresh the folder contents
+            if (isTreeView) {
+              loadTreeData(currentFolder);
+            } else {
+              loadFolderContents(currentFolder);
+            }
+
+            // If the removed folder contained the currently open document, close it
+            if (currentDocument && currentDocument.startsWith(dirPath + '/')) {
+              setCurrentDocument(null);
+              setDocumentContent('');
+              setDocumentModified(false);
+            }
+          }
+        }),
+
+        window.electronAPI.folder.onFileChanged((filePath: string) => {
+          // If the changed file is currently open, we might want to notify the user
+          // For now, we'll just refresh the folder contents in case metadata changed
+          const fileDir = filePath.split('/').slice(0, -1).join('/');
+          if (fileDir === currentFolder) {
+            // Optionally refresh - in many cases this might not be needed
+            // for file content changes, only for cases like file size display
+          }
+        })
+      ];
+
+      return () => {
+        // Clean up event listeners
+        cleanup.forEach(cleanupFn => cleanupFn());
+        // Unwatch the directory when component unmounts or folder changes
+        if (currentFolder) {
+          window.electronAPI?.folder?.unwatchDirectory(currentFolder);
+        }
+      };
     }
   }, [currentFolder, isTreeView]);
 

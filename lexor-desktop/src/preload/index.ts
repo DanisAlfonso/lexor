@@ -35,6 +35,29 @@ const electronAPI = {
   folder: {
     showOpenDialog: () => ipcRenderer.invoke('folder:showOpenDialog'),
     readDirectory: (folderPath: string, recursive?: boolean) => ipcRenderer.invoke('folder:readDirectory', folderPath, recursive),
+    watchDirectory: (folderPath: string) => ipcRenderer.invoke('folder:watchDirectory', folderPath),
+    unwatchDirectory: (folderPath: string) => ipcRenderer.invoke('folder:unwatchDirectory', folderPath),
+    unwatchAll: () => ipcRenderer.invoke('folder:unwatchAll'),
+    onFileAdded: (callback: (filePath: string) => void) => {
+      ipcRenderer.on('folder:fileAdded', (_, filePath) => callback(filePath));
+      return () => ipcRenderer.removeAllListeners('folder:fileAdded');
+    },
+    onFolderAdded: (callback: (dirPath: string) => void) => {
+      ipcRenderer.on('folder:folderAdded', (_, dirPath) => callback(dirPath));
+      return () => ipcRenderer.removeAllListeners('folder:folderAdded');
+    },
+    onFileRemoved: (callback: (filePath: string) => void) => {
+      ipcRenderer.on('folder:fileRemoved', (_, filePath) => callback(filePath));
+      return () => ipcRenderer.removeAllListeners('folder:fileRemoved');
+    },
+    onFolderRemoved: (callback: (dirPath: string) => void) => {
+      ipcRenderer.on('folder:folderRemoved', (_, dirPath) => callback(dirPath));
+      return () => ipcRenderer.removeAllListeners('folder:folderRemoved');
+    },
+    onFileChanged: (callback: (filePath: string) => void) => {
+      ipcRenderer.on('folder:fileChanged', (_, filePath) => callback(filePath));
+      return () => ipcRenderer.removeAllListeners('folder:fileChanged');
+    },
   },
 
   // Library operations
