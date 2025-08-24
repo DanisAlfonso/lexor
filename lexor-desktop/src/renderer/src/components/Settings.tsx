@@ -9,10 +9,12 @@ export function Settings() {
     fontSize,
     lineHeight,
     fontFamily,
+    transparency,
     setTheme,
     setFontSize,
     setLineHeight,
     setFontFamily,
+    setTransparency,
     libraryFolder,
     setLibraryFolder,
   } = useAppStore();
@@ -189,63 +191,33 @@ export function Settings() {
                 )}
               />
             </div>
+
+            {/* Window Transparency */}
+            <div>
+              <label className={clsx(
+                'block text-sm font-medium mb-2',
+                isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+              )}>
+                Window Transparency: {transparency}%
+              </label>
+              <input
+                type="range"
+                min="60"
+                max="100"
+                value={transparency}
+                onChange={(e) => setTransparency(Number(e.target.value))}
+                className={clsx(
+                  'w-full h-2 rounded-lg appearance-none cursor-pointer',
+                  isDarkMode 
+                    ? 'bg-kanagawa-ink5 accent-accent-blue' 
+                    : 'bg-gray-200 accent-primary-600'
+                )}
+              />
+            </div>
+
           </div>
         </div>
 
-        {/* Editor */}
-        <div className={clsx(
-          'p-6 mb-6 rounded-xl shadow-sm border',
-          isDarkMode 
-            ? 'bg-kanagawa-ink4 border-kanagawa-ink5' 
-            : 'bg-white border-gray-200'
-        )}>
-          <h2 className={clsx(
-            'text-xl font-semibold mb-4',
-            isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
-          )}>
-            Editor
-          </h2>
-          
-          <div className="space-y-4">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="wordWrap"
-                className={clsx(
-                  'rounded border focus:ring-2 focus:ring-accent-blue',
-                  isDarkMode 
-                    ? 'border-kanagawa-ink5 bg-kanagawa-ink5 text-accent-blue' 
-                    : 'border-gray-300 text-primary-600 focus:ring-primary-500'
-                )}
-              />
-              <label htmlFor="wordWrap" className={clsx(
-                'ml-2 text-sm',
-                isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
-              )}>
-                Word wrap
-              </label>
-            </div>
-            
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="showLineNumbers"
-                className={clsx(
-                  'rounded border focus:ring-2 focus:ring-accent-blue',
-                  isDarkMode 
-                    ? 'border-kanagawa-ink5 bg-kanagawa-ink5 text-accent-blue' 
-                    : 'border-gray-300 text-primary-600 focus:ring-primary-500'
-                )}
-              />
-              <label htmlFor="showLineNumbers" className={clsx(
-                'ml-2 text-sm',
-                isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
-              )}>
-                Show line numbers
-              </label>
-            </div>
-          </div>
-        </div>
 
         {/* Lexor Library */}
         <div className={clsx(
@@ -339,62 +311,6 @@ export function Settings() {
           </div>
         </div>
 
-        {/* Study */}
-        <div className={clsx(
-          'p-6 rounded-xl shadow-sm border',
-          isDarkMode 
-            ? 'bg-kanagawa-ink4 border-kanagawa-ink5' 
-            : 'bg-white border-gray-200'
-        )}>
-          <h2 className={clsx(
-            'text-xl font-semibold mb-4',
-            isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
-          )}>
-            Study Settings
-          </h2>
-          
-          <div className="space-y-4">
-            <div>
-              <label className={clsx(
-                'block text-sm font-medium mb-2',
-                isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
-              )}>
-                Daily study goal (cards)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="500"
-                defaultValue="20"
-                className={clsx(
-                  'block w-32 rounded-md border focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent',
-                  isDarkMode 
-                    ? 'border-kanagawa-ink5 bg-kanagawa-ink5 text-kanagawa-white' 
-                    : 'border-gray-300 bg-white text-gray-900'
-                )}
-              />
-            </div>
-            
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="studyReminder"
-                className={clsx(
-                  'rounded border focus:ring-2 focus:ring-accent-blue',
-                  isDarkMode 
-                    ? 'border-kanagawa-ink5 bg-kanagawa-ink5 text-accent-blue' 
-                    : 'border-gray-300 text-primary-600 focus:ring-primary-500'
-                )}
-              />
-              <label htmlFor="studyReminder" className={clsx(
-                'ml-2 text-sm',
-                isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
-              )}>
-                Daily study reminder
-              </label>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

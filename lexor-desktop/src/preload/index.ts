@@ -16,6 +16,7 @@ const electronAPI = {
     maximize: () => ipcRenderer.invoke('window:maximize'),
     close: () => ipcRenderer.invoke('window:close'),
     setFocusMode: (focusMode: boolean) => ipcRenderer.send('window:set-focus-mode', focusMode),
+    setTransparency: (transparency: number) => ipcRenderer.invoke('window:set-transparency', transparency),
   },
 
   // File operations

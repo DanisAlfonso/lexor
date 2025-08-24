@@ -57,6 +57,7 @@ export interface AppState {
   lineHeight: number;
   fontFamily: string;
   showScrollbar: boolean;
+  transparency: number; // 0-100, where 100 is opaque
   
   // Actions
   setCurrentView: (view: ViewType) => void;
@@ -111,11 +112,12 @@ export interface AppState {
   setFontFamily: (family: string) => void;
   setShowScrollbar: (show: boolean) => void;
   toggleScrollbar: () => void;
+  setTransparency: (transparency: number) => void;
 }
 
 export const useAppStore = create<AppState>()(
-  persist(
-    (set, get) => ({
+  subscribeWithSelector(
+    persist((set, get) => ({
       // Initial state
       currentView: 'editor',
       sidebarCollapsed: false,
@@ -153,6 +155,7 @@ export const useAppStore = create<AppState>()(
       lineHeight: 1.6,
       fontFamily: 'SF Mono',
       showScrollbar: true,
+      transparency: 100,
       
       // Actions
       setCurrentView: (view) => set({ currentView: view }),
@@ -608,6 +611,17 @@ Happy writing!
       setShowScrollbar: (show) => set({ showScrollbar: show }),
       toggleScrollbar: () => set((state) => ({ showScrollbar: !state.showScrollbar })),
       
+      setTransparency: (transparency) => {
+        const clampedTransparency = Math.max(60, Math.min(100, transparency));
+        set({ transparency: clampedTransparency });
+        
+        // Communicate transparency change to main process
+        if (window.electronAPI?.window?.setTransparency) {
+          window.electronAPI.window.setTransparency(clampedTransparency);
+        }
+      },
+      
+      
       focusEditor: () => {
         // Dispatch a custom event that the editor can listen to
         window.dispatchEvent(new CustomEvent('focusEditor'));
@@ -629,7 +643,27 @@ Happy writing!
         isFirstTimeUser: state.isFirstTimeUser,
         splitRatio: state.splitRatio,
         showScrollbar: state.showScrollbar,
+        transparency: state.transparency,
       }),
-    }
+    })
   )
 );
+
+// Initialize window settings when the app starts
+if (typeof window !== 'undefined') {
+  // Apply transparency and blur settings on app start
+  const initializeWindowSettings = () => {
+    const state = useAppStore.getState();
+    
+    if (window.electronAPI?.window) {
+      // Set initial transparency
+      if (state.transparency !== 100) {
+        window.electronAPI.window.setTransparency(state.transparency);
+      }
+      
+    }
+  };
+
+  // Initialize after a brief delay to ensure everything is loaded
+  setTimeout(initializeWindowSettings, 100);
+}

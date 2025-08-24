@@ -10,6 +10,7 @@ export interface ElectronAPI {
     minimize: () => Promise<void>;
     maximize: () => Promise<void>;
     close: () => Promise<void>;
+    setTransparency: (transparency: number) => Promise<void>;
   };
 
   file: {

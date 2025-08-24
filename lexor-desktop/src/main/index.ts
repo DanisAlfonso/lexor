@@ -85,6 +85,9 @@ class LexorApp {
       if (!this.isDevelopment) {
         autoUpdater.checkForUpdatesAndNotify();
       }
+      
+      // Request stored settings from renderer to restore window state
+      mainWindow.webContents.send('window:request-settings');
     });
   }
 
@@ -135,6 +138,10 @@ class LexorApp {
     ipcMain.handle('window:close', (event) => {
       const window = BrowserWindow.fromWebContents(event.sender);
       window?.close();
+    });
+
+    ipcMain.handle('window:set-transparency', (_, transparency: number) => {
+      this.windowManager.setTransparency(transparency);
     });
 
     // Focus mode handling (macOS only)

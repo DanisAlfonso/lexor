@@ -3,6 +3,9 @@ import { join } from 'path';
 
 export class WindowManager {
   private mainWindow: BrowserWindow | null = null;
+  private windowSettings = {
+    transparency: 100,
+  };
 
   createMainWindow(): BrowserWindow {
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -27,10 +30,10 @@ export class WindowManager {
         allowRunningInsecureContent: false
       },
       show: false, // Don't show until ready
-      backgroundColor: '#ffffff',
-      vibrancy: process.platform === 'darwin' ? 'under-window' : undefined,
+      backgroundColor: process.platform === 'darwin' ? '#00000000' : '#ffffff', // Transparent on macOS
+      vibrancy: undefined, // Will be set based on user preference
       frame: true,
-      transparent: false
+      transparent: true, // Enable transparency support
     });
 
     // Show window when ready to prevent visual flash
@@ -83,5 +86,19 @@ export class WindowManager {
       }
       this.mainWindow.focus();
     }
+  }
+
+  setTransparency(transparency: number): void {
+    if (!this.mainWindow) return;
+    
+    this.windowSettings.transparency = Math.max(60, Math.min(100, transparency));
+    const opacity = this.windowSettings.transparency / 100;
+    
+    this.mainWindow.setOpacity(opacity);
+  }
+
+
+  getWindowSettings() {
+    return { ...this.windowSettings };
   }
 }
