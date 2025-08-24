@@ -112,17 +112,17 @@ export function MarkdownEditor() {
     currentDocument,
     rightPaneDocument,
     // Scrollbar preference
-    showScrollbar
+    showScrollbar,
+    // Live preview state
+    isLivePreviewEnabled,
+    setLivePreviewEnabled
   } = useAppStore();
-
-  // Live preview state
-  const [isLivePreviewEnabled, setIsLivePreviewEnabled] = useState(false);
 
   // Handle menu-triggered live preview toggle
   useEffect(() => {
     const handleToggleLivePreview = () => {
       const newState = !isLivePreviewEnabled;
-      setIsLivePreviewEnabled(newState);
+      setLivePreviewEnabled(newState);
       
       // Update the CodeMirror view if it exists
       if (editorRef.current?.view) {
@@ -298,7 +298,7 @@ export function MarkdownEditor() {
     key: 'Mod-Shift-p',
     run: (view) => {
       const newState = !isLivePreviewEnabled;
-      setIsLivePreviewEnabled(newState);
+      setLivePreviewEnabled(newState);
       view.dispatch({
         effects: toggleLivePreview.of(newState)
       });

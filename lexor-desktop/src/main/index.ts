@@ -209,8 +209,8 @@ class LexorApp {
               fileList.push(folderItem);
             } else if (stats.isFile()) {
               const ext = extname(item).toLowerCase();
-              // Only include markdown, text files, and some other common formats
-              const supportedExtensions = ['.md', '.markdown', '.txt', '.text'];
+              // Only include markdown, text files, audio files, and some other common formats
+              const supportedExtensions = ['.md', '.markdown', '.txt', '.text', '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.wma', '.aiff'];
               if (supportedExtensions.includes(ext)) {
                 fileList.push({
                   name: item,

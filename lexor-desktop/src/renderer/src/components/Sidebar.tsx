@@ -26,7 +26,8 @@ export function Sidebar() {
     setCurrentDocument,
     setDocumentContent,
     setDocumentModified,
-    currentFolder
+    currentFolder,
+    setLivePreviewEnabled
   } = useAppStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -38,19 +39,47 @@ export function Sidebar() {
 
   const handleFileSelect = async (filePath: string) => {
     try {
-      // Set the current document
-      setCurrentDocument(filePath);
+      // Check if this is an audio file
+      const audioExtensions = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.wma', '.aiff'];
+      const fileExtension = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
       
-      // Read the file content
-      const content = await window.electronAPI?.file?.readFile(filePath);
-      if (content !== undefined) {
-        setDocumentContent(content);
+      if (audioExtensions.includes(fileExtension)) {
+        // Handle audio file - create an audio player widget without reading the file
+        const fileName = filePath.substring(filePath.lastIndexOf('/') + 1);
+        const audioContent = `# Playing: ${fileName}
+
+[audio: ${fileName}](${filePath})
+
+---
+
+*To play this audio file, switch to **Preview** mode by selecting View → Preview or pressing **Shift+⌘+P**.*`;
+        
+        setCurrentDocument(filePath);
+        setDocumentContent(audioContent);
         setDocumentModified(false);
+        
+        // Enable live preview mode to show the audio player
+        setLivePreviewEnabled(true);
+        
+        // Navigate to editor view to show the audio player
+        setCurrentView('editor');
+        navigate('/editor');
+      } else {
+        // Handle regular text files
+        // Set the current document
+        setCurrentDocument(filePath);
+        
+        // Read the file content
+        const content = await window.electronAPI?.file?.readFile(filePath);
+        if (content !== undefined) {
+          setDocumentContent(content);
+          setDocumentModified(false);
+        }
+        
+        // Navigate to editor view
+        setCurrentView('editor');
+        navigate('/editor');
       }
-      
-      // Navigate to editor view
-      setCurrentView('editor');
-      navigate('/editor');
     } catch (error) {
       console.error('Failed to open file:', error);
     }

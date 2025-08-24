@@ -19,6 +19,7 @@ export interface AppState {
   sidebarCollapsed: boolean;
   isFocusMode: boolean;
   zoomLevel: number;
+  isLivePreviewEnabled: boolean;
   
   // Document State
   currentDocument: string | null;
@@ -62,6 +63,7 @@ export interface AppState {
   toggleSidebar: () => void;
   toggleFocusMode: () => void;
   setZoomLevel: (level: number) => void;
+  setLivePreviewEnabled: (enabled: boolean) => void;
   zoomIn: () => void;
   zoomOut: () => void;
   resetZoom: () => void;
@@ -119,6 +121,7 @@ export const useAppStore = create<AppState>()(
       sidebarCollapsed: false,
       isFocusMode: false,
       zoomLevel: 100,
+      isLivePreviewEnabled: false,
       
       currentDocument: null,
       documentContent: '',
@@ -157,6 +160,8 @@ export const useAppStore = create<AppState>()(
       toggleSidebar: () => set((state) => ({ 
         sidebarCollapsed: !state.sidebarCollapsed 
       })),
+      
+      setLivePreviewEnabled: (enabled) => set({ isLivePreviewEnabled: enabled }),
       
       toggleFocusMode: () => {
         const newFocusMode = !get().isFocusMode;
@@ -429,11 +434,30 @@ export const useAppStore = create<AppState>()(
           if (lastOpenedDocument) {
             try {
               // Check if last document still exists
-              const content = await window.electronAPI?.file?.readFile(lastOpenedDocument);
-              if (content !== undefined) {
-                console.log('Opening last document:', lastOpenedDocument);
-                await get().openDocumentAndNavigate(lastOpenedDocument);
-                return;
+              // For audio files, we just check if we can access the file, not read its content
+              const audioExtensions = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.wma', '.aiff'];
+              const fileExtension = lastOpenedDocument.toLowerCase().substring(lastOpenedDocument.lastIndexOf('.'));
+              
+              if (audioExtensions.includes(fileExtension)) {
+                // For audio files, just check if file exists by attempting to read it and catching the error
+                // We don't care about the content for audio files
+                try {
+                  await window.electronAPI?.file?.readFile(lastOpenedDocument);
+                  // If we get here, the file exists, so open it
+                  console.log('Opening last audio document:', lastOpenedDocument);
+                  await get().openDocumentAndNavigate(lastOpenedDocument);
+                  return;
+                } catch (audioError) {
+                  console.log('Last audio document no longer exists or cannot be accessed:', lastOpenedDocument);
+                }
+              } else {
+                // For regular text files, read the content as before
+                const content = await window.electronAPI?.file?.readFile(lastOpenedDocument);
+                if (content !== undefined) {
+                  console.log('Opening last document:', lastOpenedDocument);
+                  await get().openDocumentAndNavigate(lastOpenedDocument);
+                  return;
+                }
               }
             } catch (error) {
               console.log('Last document no longer exists:', lastOpenedDocument);
@@ -471,14 +495,37 @@ export const useAppStore = create<AppState>()(
 
       openDocumentAndNavigate: async (filePath: string) => {
         try {
+          // Check if this is an audio file
+          const audioExtensions = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.wma', '.aiff'];
+          const fileExtension = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+          
           // Set the current document
           get().setCurrentDocument(filePath);
           
-          // Read the file content
-          const content = await window.electronAPI?.file?.readFile(filePath);
-          if (content !== undefined) {
-            get().setDocumentContent(content);
+          if (audioExtensions.includes(fileExtension)) {
+            // Handle audio file - create an audio player widget without reading the file
+            const fileName = filePath.substring(filePath.lastIndexOf('/') + 1);
+            const audioContent = `# Playing: ${fileName}
+
+[audio: ${fileName}](${filePath})
+
+---
+
+*To play this audio file, switch to **Preview** mode by selecting View → Preview or pressing **Shift+⌘+P**.*`;
+            
+            get().setDocumentContent(audioContent);
             get().setDocumentModified(false);
+            
+            // Enable live preview mode to show the audio player
+            get().setLivePreviewEnabled(true);
+          } else {
+            // Handle regular text files
+            // Read the file content
+            const content = await window.electronAPI?.file?.readFile(filePath);
+            if (content !== undefined) {
+              get().setDocumentContent(content);
+              get().setDocumentModified(false);
+            }
           }
           
           // Navigate to editor view

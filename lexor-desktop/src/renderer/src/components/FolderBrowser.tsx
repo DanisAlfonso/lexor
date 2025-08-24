@@ -13,6 +13,7 @@ import {
   TrashIcon,
   PlusIcon,
   FolderPlusIcon,
+  SpeakerWaveIcon,
 } from '@heroicons/react/24/outline';
 import { clsx } from 'clsx';
 
@@ -557,6 +558,13 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
   };
 
   // Flatten tree for rendering with proper indentation
+  // Helper function to determine if a file is an audio file
+  const isAudioFile = (fileName: string): boolean => {
+    const audioExtensions = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.wma', '.aiff'];
+    const fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+    return audioExtensions.includes(fileExtension);
+  };
+
   const flattenTreeItems = (items: FileItem[], depth = 0): (FileItem & { renderDepth: number })[] => {
     const result: (FileItem & { renderDepth: number })[] = [];
     
@@ -590,6 +598,11 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
                   <FolderIcon className={clsx(
                     "h-5 w-5",
                     isDarkMode ? "text-accent-blue" : "text-blue-600"
+                  )} />
+                ) : isAudioFile(item.name) ? (
+                  <SpeakerWaveIcon className={clsx(
+                    "h-5 w-5",
+                    isDarkMode ? "text-purple-400" : "text-purple-600"
                   )} />
                 ) : (
                   <DocumentTextIcon className={clsx(
@@ -696,12 +709,21 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
               ) : (
                 <>
                   <div className="flex-shrink-0 mr-3">
-                    <DocumentTextIcon className={clsx(
-                      "h-5 w-5 transition-colors",
-                      isDarkMode 
-                        ? "text-kanagawa-gray group-hover:text-kanagawa-oldwhite" 
-                        : "text-gray-500 group-hover:text-gray-700"
-                    )} />
+                    {isAudioFile(item.name) ? (
+                      <SpeakerWaveIcon className={clsx(
+                        "h-5 w-5 transition-colors",
+                        isDarkMode 
+                          ? "text-purple-400 group-hover:text-purple-300" 
+                          : "text-purple-600 group-hover:text-purple-700"
+                      )} />
+                    ) : (
+                      <DocumentTextIcon className={clsx(
+                        "h-5 w-5 transition-colors",
+                        isDarkMode 
+                          ? "text-kanagawa-gray group-hover:text-kanagawa-oldwhite" 
+                          : "text-gray-500 group-hover:text-gray-700"
+                      )} />
+                    )}
                   </div>
                 </>
               )}
