@@ -199,6 +199,8 @@ export const useAppStore = create<AppState>()(
         if (path) {
           get().setLastOpenedDocument(path);
         }
+        // Set global variable for relative path resolution in media
+        (window as any).__lexor_current_document__ = path;
       },
       
       setDocumentContent: (content) => {

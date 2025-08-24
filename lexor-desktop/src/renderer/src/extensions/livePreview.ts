@@ -47,7 +47,7 @@ function getMediaUrl(src: string): string {
     console.log(`getMediaUrl called with: "${src}"`);
   }
   
-  // If it's already a URL or relative path, return as-is
+  // If it's already a URL, return as-is
   if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:') || src.startsWith('blob:')) {
     return src;
   }
@@ -75,9 +75,30 @@ function getMediaUrl(src: string): string {
       console.log(`Tilde expansion: ${src} → ${absolutePath} (homeDir: ${homeDir})`);
     }
   }
+  // Handle relative paths by resolving them relative to the current document
+  else if (!absolutePath.startsWith('/')) {
+    // Try to get current document path from global window object
+    try {
+      const currentDoc = (window as any).__lexor_current_document__;
+      if (currentDoc) {
+        const currentDir = currentDoc.substring(0, currentDoc.lastIndexOf('/'));
+        absolutePath = `${currentDir}/${src}`;
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`Relative path resolution: ${src} + ${currentDir} → ${absolutePath}`);
+        }
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Could not resolve relative path, no current document available');
+      }
+    }
+  }
   
-  // If it's not an absolute path after tilde expansion, return as-is (relative path)
+  // If still not an absolute path, return as-is
   if (!absolutePath.startsWith('/')) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Could not resolve path: ${src}, returning as-is`);
+    }
     return src;
   }
   
