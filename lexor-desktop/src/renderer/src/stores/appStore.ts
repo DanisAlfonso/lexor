@@ -9,6 +9,8 @@ export interface FileItem {
   type: 'file' | 'directory';
   isDirectory: boolean;
   extension?: string;
+  depth?: number;
+  children?: FileItem[];
 }
 
 export interface AppState {

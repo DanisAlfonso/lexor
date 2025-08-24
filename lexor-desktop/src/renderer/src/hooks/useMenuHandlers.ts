@@ -63,6 +63,9 @@ export function useMenuHandlers() {
             // Navigate to library and refresh contents to show the new file
             await loadFolderContents(libraryFolder);
             
+            // Also trigger a custom event to refresh tree view if active
+            window.dispatchEvent(new CustomEvent('refreshFolderView'));
+            
             return;
           }
         }
@@ -133,6 +136,8 @@ export function useMenuHandlers() {
           console.log(`Successfully imported ${result.count} files to library`);
           // Refresh library contents if currently viewing library
           await loadFolderContents(libraryFolder);
+          // Also trigger tree view refresh
+          window.dispatchEvent(new CustomEvent('refreshFolderView'));
         } else if (result.errors.length > 0) {
           console.error('Import errors:', result.errors);
         }
@@ -148,16 +153,17 @@ export function useMenuHandlers() {
           return;
         }
 
-        const folderName = prompt('Enter folder name:');
-        if (!folderName?.trim()) return;
-
-        const result = await window.electronAPI.file.createFolder(libraryFolder, folderName);
-        if (result?.success) {
-          // Navigate to the library and refresh contents
+        // Navigate to library first if not already there
+        if (currentFolder !== libraryFolder) {
           await loadFolderContents(libraryFolder);
+          // Trigger tree view refresh if needed
+          window.dispatchEvent(new CustomEvent('refreshFolderView'));
         }
+
+        // Dispatch custom event to trigger the folder creation dialog in FolderBrowser
+        window.dispatchEvent(new CustomEvent('createFolderInLibrary'));
       } catch (error) {
-        console.error('Failed to create folder in library:', error);
+        console.error('Failed to initiate folder creation in library:', error);
       }
     };
 
@@ -318,6 +324,8 @@ export function useMenuHandlers() {
           // Refresh folder contents and clear selection
           if (currentFolder) {
             await loadFolderContents(currentFolder);
+            // Trigger tree view refresh
+            window.dispatchEvent(new CustomEvent('refreshFolderView'));
           }
           setSelectedItem(null);
         }

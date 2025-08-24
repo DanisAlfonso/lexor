@@ -28,12 +28,13 @@ const electronAPI = {
     delete: (filePath: string) => ipcRenderer.invoke('file:delete', filePath),
     createFolder: (parentPath: string, folderName: string) => ipcRenderer.invoke('file:createFolder', parentPath, folderName),
     createFile: (parentPath: string, fileName: string, content?: string) => ipcRenderer.invoke('file:createFile', parentPath, fileName, content),
+    move: (sourcePath: string, destinationPath: string) => ipcRenderer.invoke('file:move', sourcePath, destinationPath),
   },
 
   // Folder operations
   folder: {
     showOpenDialog: () => ipcRenderer.invoke('folder:showOpenDialog'),
-    readDirectory: (folderPath: string) => ipcRenderer.invoke('folder:readDirectory', folderPath),
+    readDirectory: (folderPath: string, recursive?: boolean) => ipcRenderer.invoke('folder:readDirectory', folderPath, recursive),
   },
 
   // Library operations

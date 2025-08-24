@@ -181,56 +181,64 @@ class LexorApp {
       return result;
     });
 
-    ipcMain.handle('folder:readDirectory', async (_, folderPath: string) => {
+    ipcMain.handle('folder:readDirectory', async (_, folderPath: string, recursive = false) => {
       const { readdir, stat } = await import('fs/promises');
       const { join, extname } = await import('path');
       
-      try {
-        const items = await readdir(folderPath);
-        const fileList = [];
-        
-        for (const item of items) {
-          const fullPath = join(folderPath, item);
-          const stats = await stat(fullPath);
+      const readDirectoryRecursive = async (dirPath: string, depth = 0): Promise<any[]> => {
+        try {
+          const items = await readdir(dirPath);
+          const fileList = [];
           
-          // Skip hidden files and folders
-          if (item.startsWith('.')) continue;
-          
-          if (stats.isDirectory()) {
-            fileList.push({
-              name: item,
-              path: fullPath,
-              type: 'directory',
-              isDirectory: true
-            });
-          } else if (stats.isFile()) {
-            const ext = extname(item).toLowerCase();
-            // Only include markdown, text files, and some other common formats
-            const supportedExtensions = ['.md', '.markdown', '.txt', '.text'];
-            if (supportedExtensions.includes(ext)) {
-              fileList.push({
+          for (const item of items) {
+            const fullPath = join(dirPath, item);
+            const stats = await stat(fullPath);
+            
+            // Skip hidden files and folders
+            if (item.startsWith('.')) continue;
+            
+            if (stats.isDirectory()) {
+              const folderItem = {
                 name: item,
                 path: fullPath,
-                type: 'file',
-                isDirectory: false,
-                extension: ext
-              });
+                type: 'directory',
+                isDirectory: true,
+                depth,
+                children: recursive ? await readDirectoryRecursive(fullPath, depth + 1) : []
+              };
+              fileList.push(folderItem);
+            } else if (stats.isFile()) {
+              const ext = extname(item).toLowerCase();
+              // Only include markdown, text files, and some other common formats
+              const supportedExtensions = ['.md', '.markdown', '.txt', '.text'];
+              if (supportedExtensions.includes(ext)) {
+                fileList.push({
+                  name: item,
+                  path: fullPath,
+                  type: 'file',
+                  isDirectory: false,
+                  extension: ext,
+                  depth
+                });
+              }
             }
           }
+          
+          // Sort: directories first, then files, both alphabetically
+          fileList.sort((a, b) => {
+            if (a.isDirectory && !b.isDirectory) return -1;
+            if (!a.isDirectory && b.isDirectory) return 1;
+            return a.name.localeCompare(b.name);
+          });
+          
+          return fileList;
+        } catch (error) {
+          console.error('Error reading directory:', error);
+          return [];
         }
-        
-        // Sort: directories first, then files, both alphabetically
-        fileList.sort((a, b) => {
-          if (a.isDirectory && !b.isDirectory) return -1;
-          if (!a.isDirectory && b.isDirectory) return 1;
-          return a.name.localeCompare(b.name);
-        });
-        
-        return fileList;
-      } catch (error) {
-        console.error('Error reading directory:', error);
-        return [];
-      }
+      };
+      
+      return await readDirectoryRecursive(folderPath);
     });
 
     // Library operations
@@ -462,6 +470,41 @@ Happy creating!
         const filePath = join(parentPath, fileName);
         await writeFile(filePath, content, 'utf-8');
         return { success: true, filePath };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('file:move', async (_, sourcePath: string, destinationPath: string) => {
+      const { rename, stat } = await import('fs/promises');
+      const { join, basename, dirname } = await import('path');
+      
+      try {
+        // Validate source exists
+        const sourceStats = await stat(sourcePath);
+        
+        // Validate destination directory exists
+        const destDir = await stat(dirname(destinationPath));
+        if (!destDir.isDirectory()) {
+          return { success: false, error: 'Destination directory does not exist' };
+        }
+        
+        // Check if we're moving into the same directory
+        if (dirname(sourcePath) === dirname(destinationPath)) {
+          return { success: false, error: 'Cannot move item to the same directory' };
+        }
+        
+        // Check if destination already exists
+        try {
+          await stat(destinationPath);
+          return { success: false, error: 'An item with this name already exists at the destination' };
+        } catch {
+          // Destination doesn't exist - good!
+        }
+        
+        // Perform the move
+        await rename(sourcePath, destinationPath);
+        return { success: true, newPath: destinationPath };
       } catch (error: any) {
         return { success: false, error: error.message };
       }
