@@ -17,11 +17,16 @@ export function FlashcardView() {
     importFromMarkdown,
     clearError,
     error,
-    isLoading
+    isLoading,
+    resetFlashcardDatabase,
+    discoverAndSyncLibrary,
+    removeOrphanedDecks
   } = useFlashcardStore();
   
   const [viewMode, setViewMode] = useState<FlashcardViewMode>('browse');
   const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isWatchingFile, setIsWatchingFile] = useState(false);
   
   // State for system theme detection
   const [systemTheme, setSystemTheme] = useState(
@@ -54,21 +59,16 @@ export function FlashcardView() {
     }
   }, [error, clearError]);
 
+  // Clear success messages after some time
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
   // Determine if we should use dark mode
   const isDarkMode = theme === 'dark' || (theme === 'system' && systemTheme === 'dark');
-
-  const handleImportFromCurrentFile = async () => {
-    if (!currentDocument || !documentContent) {
-      // Show error notification
-      return;
-    }
-
-    const success = await importFromMarkdown(currentDocument, documentContent);
-    if (success) {
-      // Show success notification
-      console.log('Successfully imported flashcards from current file');
-    }
-  };
 
   const handleSelectDeck = (deck: Deck) => {
     setSelectedDeck(deck);
@@ -88,6 +88,114 @@ export function FlashcardView() {
     setViewMode('browse');
     setSelectedDeck(null);
   };
+
+  const handleResetDatabase = async () => {
+    if (window.confirm('This will delete ALL flashcards and reset the database. Are you sure?')) {
+      await resetFlashcardDatabase();
+    }
+  };
+
+  const handleDiscoverLibrary = async () => {
+    const result = await discoverAndSyncLibrary();
+    if (result.success) {
+      let message = `Discovery complete! Processed ${result.filesProcessed} files, ` +
+        `created ${result.decksCreated} decks, imported ${result.cardsImported} cards`;
+      
+      // Handle orphaned decks
+      if (result.orphanedDecks.length > 0) {
+        const shouldRemove = window.confirm(
+          `Found ${result.orphanedDecks.length} deck(s) with missing source files:\n\n` +
+          result.orphanedDecks.map(deck => `• ${deck.name} (${deck.filePath})`).join('\n') +
+          `\n\nWould you like to remove these orphaned decks?\n\n` +
+          `• YES = Clean sync (remove decks, lose study progress)\n` +
+          `• NO = Keep decks (preserve study progress)`
+        );
+        
+        if (shouldRemove) {
+          const removeResult = await removeOrphanedDecks(result.orphanedDecks.map(d => d.id));
+          if (removeResult.success) {
+            message += `, removed ${removeResult.removed} orphaned decks`;
+          } else {
+            message += `, failed to remove orphaned decks: ${removeResult.errors.join(', ')}`;
+          }
+        } else {
+          message += `, ${result.orphanedDecks.length} orphaned decks kept`;
+        }
+      }
+      
+      setSuccessMessage(message + ' ✓');
+    } else {
+      setSuccessMessage(`Discovery failed: ${result.errors.join(', ')}`);
+    }
+  };
+
+  // Auto-sync on component mount
+  useEffect(() => {
+    const performAutoSync = async () => {
+      try {
+        console.log('Performing automatic library discovery...');
+        await discoverAndSyncLibrary();
+        console.log('Automatic discovery completed');
+      } catch (error) {
+        console.error('Auto-discovery failed:', error);
+      }
+    };
+
+    // Delay the auto-sync slightly to let the UI load first
+    const timer = setTimeout(performAutoSync, 1000);
+    return () => clearTimeout(timer);
+  }, []); // Run only on mount
+
+  // Auto-sync on file save - watch current document for changes
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    const setupFileWatching = async () => {
+      if (currentDocument && !isWatchingFile) {
+        try {
+          // Get the directory of the current file to watch
+          const fileDir = currentDocument.substring(0, currentDocument.lastIndexOf('/'));
+          
+          // Start watching the directory
+          await window.electronAPI.folder.watchDirectory(fileDir);
+          setIsWatchingFile(true);
+          console.log('Started watching directory:', fileDir);
+
+          // Set up the file change listener
+          cleanup = window.electronAPI.folder.onFileChanged(async (changedFilePath) => {
+            // Only sync if the changed file is the current document
+            if (changedFilePath === currentDocument && documentContent) {
+              try {
+                console.log('File changed, auto-syncing:', changedFilePath);
+                const success = await importFromMarkdown(currentDocument, documentContent);
+                if (success) {
+                  setSuccessMessage('Flashcards auto-synced ✓');
+                }
+              } catch (error) {
+                console.error('Auto-sync failed:', error);
+              }
+            }
+          });
+        } catch (error) {
+          console.error('Failed to setup file watching:', error);
+        }
+      }
+    };
+
+    setupFileWatching();
+
+    // Cleanup function
+    return () => {
+      if (cleanup) {
+        cleanup();
+      }
+      if (isWatchingFile && currentDocument) {
+        const fileDir = currentDocument.substring(0, currentDocument.lastIndexOf('/'));
+        window.electronAPI.folder.unwatchDirectory(fileDir).catch(console.error);
+        setIsWatchingFile(false);
+      }
+    };
+  }, [currentDocument, documentContent, importFromMarkdown, isWatchingFile]);
 
   // Show study interface when in study mode
   if (viewMode === 'study') {
@@ -142,40 +250,23 @@ export function FlashcardView() {
           </div>
 
           <div className="flex items-center space-x-3">
-            {currentDocument && (
-              <button
-                onClick={handleImportFromCurrentFile}
-                disabled={isLoading}
-                className={clsx(
-                  'flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors duration-200',
-                  isLoading
-                    ? isDarkMode
-                      ? 'bg-kanagawa-ink5 text-kanagawa-gray cursor-not-allowed'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    : isDarkMode
-                      ? 'bg-kanagawa-ink5 hover:bg-kanagawa-ink4 text-kanagawa-oldwhite'
-                      : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-                )}
-              >
-                <DocumentTextIcon className="h-4 w-4" />
-                <span>{isLoading ? 'Importing...' : 'Import from Current File'}</span>
-              </button>
-            )}
-
             <button
-              onClick={() => {
-                // TODO: Implement create new collection
-              }}
+              onClick={handleDiscoverLibrary}
+              disabled={isLoading}
               className={clsx(
                 'flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors duration-200',
-                isDarkMode 
-                  ? 'bg-accent-blue hover:bg-primary-700 text-kanagawa-ink3' 
-                  : 'bg-primary-600 hover:bg-primary-700 text-white'
+                isLoading
+                  ? isDarkMode
+                    ? 'bg-kanagawa-ink5 text-kanagawa-gray cursor-not-allowed'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : isDarkMode
+                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
               )}
             >
-              <PlusIcon className="h-4 w-4" />
-              <span>New Collection</span>
+              <span>{isLoading ? 'Discovering...' : 'Discover Library'}</span>
             </button>
+
           </div>
         </div>
 
@@ -188,6 +279,18 @@ export function FlashcardView() {
               : 'bg-red-50 text-red-700'
           )}>
             <p className="text-sm">{error}</p>
+          </div>
+        )}
+
+        {/* Success notification */}
+        {successMessage && (
+          <div className={clsx(
+            'mx-6 mt-4 p-4 rounded-lg border-l-4 border-green-400',
+            isDarkMode 
+              ? 'bg-green-900 bg-opacity-20 text-green-300' 
+              : 'bg-green-50 text-green-700'
+          )}>
+            <p className="text-sm">{successMessage}</p>
           </div>
         )}
 
@@ -373,24 +476,6 @@ export function FlashcardView() {
                 </pre>
               </div>
 
-              {currentDocument && (
-                <button
-                  onClick={handleImportFromCurrentFile}
-                  disabled={isLoading}
-                  className={clsx(
-                    'px-6 py-3 rounded-lg font-medium transition-colors duration-200',
-                    isLoading
-                      ? isDarkMode
-                        ? 'bg-kanagawa-ink5 text-kanagawa-gray cursor-not-allowed'
-                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                      : isDarkMode
-                        ? 'bg-accent-blue hover:bg-primary-700 text-kanagawa-ink3'
-                        : 'bg-primary-600 hover:bg-primary-700 text-white'
-                  )}
-                >
-                  {isLoading ? 'Importing...' : 'Import from Current File'}
-                </button>
-              )}
             </div>
           )}
         </div>

@@ -205,11 +205,6 @@ class LexorApp {
       return result;
     });
 
-    ipcMain.handle('file:readFile', async (_, filePath: string) => {
-      const { readFile } = await import('fs/promises');
-      return await readFile(filePath, 'utf-8');
-    });
-
     ipcMain.handle('file:writeFile', async (_, filePath: string, content: string) => {
       const { writeFile } = await import('fs/promises');
       await writeFile(filePath, content, 'utf-8');
@@ -668,6 +663,79 @@ Happy creating!
         return this.database.transaction(queries);
       } catch (error: any) {
         console.error('Database transaction error:', error);
+        throw error;
+      }
+    });
+
+    // Specific database methods for hierarchical deck creation
+    ipcMain.handle('database:createDeckFromFilePath', async (_, filePath: string, libraryPath: string) => {
+      try {
+        if (!this.database) {
+          await this.initializeDatabase();
+          if (!this.database) {
+            throw new Error('Database not initialized');
+          }
+        }
+        return this.database.createDeckFromFilePath(filePath, libraryPath);
+      } catch (error: any) {
+        console.error('Database createDeckFromFilePath error:', error);
+        throw error;
+      }
+    });
+
+    // File system operations for auto-discovery
+    ipcMain.handle('file:scanDirectory', async (_, directoryPath: string, extensions: string[]) => {
+      try {
+        const { readdir, stat } = await import('fs/promises');
+        const { join, extname } = await import('path');
+        
+        const files: string[] = [];
+        
+        const scanRecursive = async (currentPath: string): Promise<void> => {
+          try {
+            const items = await readdir(currentPath);
+            
+            for (const item of items) {
+              const fullPath = join(currentPath, item);
+              try {
+                const stats = await stat(fullPath);
+                
+                if (stats.isDirectory()) {
+                  // Skip hidden directories and node_modules
+                  if (!item.startsWith('.') && item !== 'node_modules') {
+                    await scanRecursive(fullPath);
+                  }
+                } else if (stats.isFile()) {
+                  const ext = extname(item);
+                  if (extensions.includes(ext)) {
+                    files.push(fullPath);
+                  }
+                }
+              } catch (itemError) {
+                // Skip files/folders we can't access
+                console.warn(`Skipping ${fullPath}:`, itemError);
+              }
+            }
+          } catch (dirError) {
+            console.error(`Error reading directory ${currentPath}:`, dirError);
+          }
+        };
+        
+        await scanRecursive(directoryPath);
+        return files;
+      } catch (error: any) {
+        console.error('File scan error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('file:readFile', async (_, filePath: string) => {
+      try {
+        const { readFile } = await import('fs/promises');
+        const content = await readFile(filePath, 'utf-8');
+        return content;
+      } catch (error: any) {
+        console.error('File read error:', error);
         throw error;
       }
     });

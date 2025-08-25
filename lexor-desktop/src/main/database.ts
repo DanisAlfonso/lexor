@@ -512,10 +512,14 @@ export class FlashcardDatabase {
   // Auto-organization from file system
   public createDeckFromFilePath(filePath: string, libraryPath: string): number | null {
     try {
+      console.log('Database createDeckFromFilePath:', { filePath, libraryPath });
+      
       // Extract relative path from library
       const relativePath = filePath.replace(libraryPath, '').replace(/^\//, '');
       const pathParts = relativePath.split('/');
       const fileName = pathParts.pop()?.replace(/\.(md|markdown)$/i, '') || 'Unknown';
+      
+      console.log('Parsed path info:', { relativePath, pathParts, fileName });
       
       let parentId: number | undefined;
       let collectionPath = '';

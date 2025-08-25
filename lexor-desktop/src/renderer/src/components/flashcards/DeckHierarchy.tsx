@@ -6,7 +6,8 @@ import {
   DocumentTextIcon,
   PlayIcon,
   PlusIcon,
-  EllipsisHorizontalIcon
+  EllipsisHorizontalIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { clsx } from 'clsx';
 import { Deck, DeckStats } from '../../../../shared/types/flashcards';
@@ -43,9 +44,10 @@ const DeckNode: React.FC<DeckNodeProps> = ({
   const hasChildren = deck.children && deck.children.length > 0;
   const [showMenu, setShowMenu] = useState(false);
   const [stats, setStats] = useState<DeckStats | null>(null);
+  const [isOrphaned, setIsOrphaned] = useState(false);
   const { service } = useFlashcardStore();
 
-  // Load stats for this deck
+  // Load stats for this deck and check if orphaned
   useEffect(() => {
     const loadStats = async () => {
       if (deck.id) {
@@ -57,8 +59,24 @@ const DeckNode: React.FC<DeckNodeProps> = ({
         }
       }
     };
+
+    const checkOrphaned = async () => {
+      if (deck.file_path && !deck.is_collection) {
+        try {
+          // Check if the source file still exists
+          await window.electronAPI.file.readFile(deck.file_path);
+          setIsOrphaned(false);
+        } catch (error) {
+          setIsOrphaned(true);
+        }
+      } else {
+        setIsOrphaned(false);
+      }
+    };
+
     loadStats();
-  }, [deck.id, service, hasChildren]);
+    checkOrphaned();
+  }, [deck.id, deck.file_path, deck.is_collection, service, hasChildren]);
 
   const handleToggleExpand = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -122,20 +140,31 @@ const DeckNode: React.FC<DeckNodeProps> = ({
         </button>
 
         {/* Icon */}
-        <div
-          className="mr-3 p-1.5 rounded-md flex-shrink-0"
-          style={{ backgroundColor: `${deck.color || '#6B7280'}20` }}
-        >
-          {deck.is_collection ? (
-            <FolderIcon 
-              className="h-4 w-4" 
-              style={{ color: deck.color || '#6B7280' }}
-            />
-          ) : (
-            <DocumentTextIcon 
-              className="h-4 w-4" 
-              style={{ color: deck.color || '#6B7280' }}
-            />
+        <div className="mr-3 flex items-center flex-shrink-0">
+          <div
+            className="p-1.5 rounded-md"
+            style={{ backgroundColor: `${deck.color || '#6B7280'}20` }}
+          >
+            {deck.is_collection ? (
+              <FolderIcon 
+                className="h-4 w-4" 
+                style={{ color: deck.color || '#6B7280' }}
+              />
+            ) : (
+              <DocumentTextIcon 
+                className="h-4 w-4" 
+                style={{ color: deck.color || '#6B7280' }}
+              />
+            )}
+          </div>
+          
+          {/* Orphaned indicator */}
+          {isOrphaned && (
+            <div className="ml-1" title="Source file missing">
+              <ExclamationTriangleIcon 
+                className="h-3 w-3 text-yellow-500" 
+              />
+            </div>
           )}
         </div>
 
@@ -145,9 +174,16 @@ const DeckNode: React.FC<DeckNodeProps> = ({
             <div className="flex-1 min-w-0">
               <h3 className={clsx(
                 'text-sm font-medium truncate',
-                isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+                isOrphaned 
+                  ? isDarkMode 
+                    ? 'text-yellow-400' 
+                    : 'text-yellow-600'
+                  : isDarkMode 
+                    ? 'text-kanagawa-white' 
+                    : 'text-gray-900'
               )}>
                 {deck.name}
+                {isOrphaned && <span className="ml-2 text-xs opacity-75">(missing file)</span>}
               </h3>
               {stats && (
                 <p className={clsx(
@@ -370,15 +406,6 @@ export const DeckHierarchy: React.FC<DeckHierarchyProps> = ({
     });
   };
 
-  const handleExpandAll = () => {
-    const allDeckIds = new Set(decks.filter(d => d.children?.length).map(d => d.id!));
-    setExpandedDecks(allDeckIds);
-  };
-
-  const handleCollapseAll = () => {
-    setExpandedDecks(new Set());
-  };
-
   if (isLoading) {
     return (
       <div className={clsx(
@@ -428,9 +455,9 @@ export const DeckHierarchy: React.FC<DeckHierarchyProps> = ({
       'h-full flex flex-col',
       isDarkMode ? 'bg-kanagawa-ink3' : 'bg-gray-50'
     )}>
-      {/* Header with controls */}
+      {/* Header */}
       <div className={clsx(
-        'flex items-center justify-between p-4 border-b',
+        'p-4 border-b',
         isDarkMode ? 'border-kanagawa-ink5' : 'border-gray-200'
       )}>
         <h2 className={clsx(
@@ -439,31 +466,6 @@ export const DeckHierarchy: React.FC<DeckHierarchyProps> = ({
         )}>
           Flashcard Collections
         </h2>
-        
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={handleExpandAll}
-            className={clsx(
-              'px-3 py-1 text-xs rounded-md transition-colors duration-200',
-              isDarkMode
-                ? 'hover:bg-kanagawa-ink4 text-kanagawa-oldwhite'
-                : 'hover:bg-gray-200 text-gray-600'
-            )}
-          >
-            Expand All
-          </button>
-          <button
-            onClick={handleCollapseAll}
-            className={clsx(
-              'px-3 py-1 text-xs rounded-md transition-colors duration-200',
-              isDarkMode
-                ? 'hover:bg-kanagawa-ink4 text-kanagawa-oldwhite'
-                : 'hover:bg-gray-200 text-gray-600'
-            )}
-          >
-            Collapse All
-          </button>
-        </div>
       </div>
 
       {/* Deck Tree */}

@@ -64,6 +64,14 @@ export interface FlashcardState {
   // Utility actions
   clearError: () => void;
   setLoading: (loading: boolean) => void;
+  
+  // Maintenance actions
+  removeDuplicateCards: () => Promise<{ removed: number, errors: string[] }>;
+  resetFlashcardDatabase: () => Promise<boolean>;
+  
+  // Auto-discovery actions
+  discoverAndSyncLibrary: (libraryPath?: string) => Promise<{ success: boolean, filesProcessed: number, decksCreated: number, cardsImported: number, orphanedDecks: Array<{id: number, name: string, filePath: string}>, errors: string[] }>;
+  removeOrphanedDecks: (orphanedIds: number[]) => Promise<{ success: boolean, removed: number, errors: string[] }>;
 }
 
 export const useFlashcardStore = create<FlashcardState>()(
@@ -293,6 +301,23 @@ export const useFlashcardStore = create<FlashcardState>()(
           if (result.deck_id) {
             await get().selectDeck(result.deck_id);
           }
+          
+          // Handle different import scenarios elegantly
+          if (result.errors && result.errors.length > 0) {
+            const skipMessage = result.errors.find(e => e.includes('skipped'));
+            if (skipMessage && result.imported_count === 0) {
+              // All cards were skipped - this is normal, don't show as error
+              console.log('All flashcards are already up to date - no changes needed');
+              set({ isLoading: false });
+              return true;
+            } else if (skipMessage) {
+              // Some imported, some skipped - show info
+              console.log(`Import completed: ${result.imported_count} new cards imported`);
+            }
+          } else if (result.imported_count > 0) {
+            console.log(`Successfully imported ${result.imported_count} new flashcards`);
+          }
+          
           set({ isLoading: false });
           return true;
         } else {
@@ -483,6 +508,105 @@ export const useFlashcardStore = create<FlashcardState>()(
 
     // Utility actions
     clearError: () => set({ error: null }),
-    setLoading: (loading: boolean) => set({ isLoading: loading })
+    setLoading: (loading: boolean) => set({ isLoading: loading }),
+    
+    // Maintenance actions
+    removeDuplicateCards: async () => {
+      const { service } = get();
+      set({ isLoading: true, error: null });
+      
+      try {
+        const result = await service.removeDuplicateCards();
+        if (result.errors.length > 0) {
+          set({ error: result.errors.join(', '), isLoading: false });
+        } else {
+          // Reload decks after cleanup
+          await get().loadDecks();
+          set({ isLoading: false });
+        }
+        return result;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to remove duplicates';
+        set({ error: errorMessage, isLoading: false });
+        return { removed: 0, errors: [errorMessage] };
+      }
+    },
+
+    resetFlashcardDatabase: async () => {
+      const { service } = get();
+      set({ isLoading: true, error: null });
+      
+      try {
+        const result = await service.resetAndReimportFromDirectory('');
+        if (result.success) {
+          await get().loadDecks();
+          set({ isLoading: false });
+          return true;
+        } else {
+          set({ error: result.message, isLoading: false });
+          return false;
+        }
+      } catch (error) {
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to reset database',
+          isLoading: false 
+        });
+        return false;
+      }
+    },
+
+    discoverAndSyncLibrary: async (libraryPath?: string) => {
+      const { service } = get();
+      set({ isLoading: true, error: null });
+      
+      try {
+        const defaultLibraryPath = '/Users/danny/Documents/Lexor Library';
+        const result = await service.discoverAndSyncLibrary(libraryPath || defaultLibraryPath);
+        
+        // Reload decks to show new discoveries
+        await get().loadDecks();
+        
+        if (result.errors.length > 0) {
+          console.warn('Discovery completed with errors:', result.errors);
+        }
+        
+        set({ isLoading: false });
+        return result;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to discover library';
+        set({ error: errorMessage, isLoading: false });
+        return {
+          success: false,
+          filesProcessed: 0,
+          decksCreated: 0,
+          cardsImported: 0,
+          orphanedDecks: [],
+          errors: [errorMessage]
+        };
+      }
+    },
+
+    removeOrphanedDecks: async (orphanedIds: number[]) => {
+      const { service } = get();
+      set({ isLoading: true, error: null });
+      
+      try {
+        const result = await service.removeOrphanedDecks(orphanedIds);
+        
+        // Reload decks to reflect changes
+        await get().loadDecks();
+        
+        set({ isLoading: false });
+        return result;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to remove orphaned decks';
+        set({ error: errorMessage, isLoading: false });
+        return {
+          success: false,
+          removed: 0,
+          errors: [errorMessage]
+        };
+      }
+    }
   }))
 );

@@ -30,6 +30,7 @@ const electronAPI = {
     createFolder: (parentPath: string, folderName: string) => ipcRenderer.invoke('file:createFolder', parentPath, folderName),
     createFile: (parentPath: string, fileName: string, content?: string) => ipcRenderer.invoke('file:createFile', parentPath, fileName, content),
     move: (sourcePath: string, destinationPath: string) => ipcRenderer.invoke('file:move', sourcePath, destinationPath),
+    scanDirectory: (directoryPath: string, extensions: string[]) => ipcRenderer.invoke('file:scanDirectory', directoryPath, extensions),
   },
 
   // Folder operations
@@ -214,6 +215,8 @@ const electronAPI = {
     execute: (sql: string, params?: any[]) => ipcRenderer.invoke('database:execute', sql, params),
     transaction: (queries: Array<{ sql: string; params?: any[] }>) => 
       ipcRenderer.invoke('database:transaction', queries),
+    createDeckFromFilePath: (filePath: string, libraryPath: string) => 
+      ipcRenderer.invoke('database:createDeckFromFilePath', filePath, libraryPath),
   },
 
   // Platform information
