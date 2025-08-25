@@ -71,8 +71,8 @@ const electronAPI = {
 
   // Menu management
   menu: {
-    updateState: (hasSelectedFile: boolean, currentView: string) => 
-      ipcRenderer.send('menu:updateState', hasSelectedFile, currentView),
+    updateState: (hasSelectedFile: boolean, currentView: string, isStudying?: boolean) => 
+      ipcRenderer.send('menu:updateState', hasSelectedFile, currentView, isStudying),
     onNewDocument: (callback: () => void) => {
       ipcRenderer.on('menu:new-document', callback);
       return () => ipcRenderer.removeListener('menu:new-document', callback);

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useAppStore } from '../stores/appStore';
+import { useFlashcardStore } from '../stores/flashcardStore';
 
 export function useMenuHandlers() {
   const {
@@ -32,13 +33,16 @@ export function useMenuHandlers() {
     toggleScrollbar,
   } = useAppStore();
 
+  const { currentSession } = useFlashcardStore();
+
   // Update menu state when selection or view changes
   useEffect(() => {
     if (window.electronAPI?.menu?.updateState) {
       const hasSelectedFile = selectedItem !== null;
-      window.electronAPI.menu.updateState(hasSelectedFile, currentView);
+      const isStudying = currentSession !== null;
+      window.electronAPI.menu.updateState(hasSelectedFile, currentView, isStudying);
     }
-  }, [selectedItem, currentView]);
+  }, [selectedItem, currentView, currentSession]);
 
   useEffect(() => {
     if (!window.electronAPI) return;
@@ -248,8 +252,8 @@ export function useMenuHandlers() {
     };
 
     const handleKeyboardShortcuts = () => {
-      // TODO: Show keyboard shortcuts dialog
-      console.log('Keyboard shortcuts not implemented yet');
+      // No longer needed - shortcuts shown directly in menu
+      console.log('Keyboard shortcuts displayed in Study menu');
     };
 
     // Split screen operations

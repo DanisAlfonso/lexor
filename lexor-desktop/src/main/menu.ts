@@ -243,6 +243,43 @@ export function createMenu(): Menu {
         },
         { type: 'separator' },
         { 
+          label: 'Show Answer',
+          accelerator: 'Space',
+          id: 'show-answer',
+          enabled: false
+        },
+        { 
+          label: 'Rate Again',
+          accelerator: '1',
+          id: 'rate-again',
+          enabled: false
+        },
+        { 
+          label: 'Rate Hard',
+          accelerator: '2',
+          id: 'rate-hard',
+          enabled: false
+        },
+        { 
+          label: 'Rate Good',
+          accelerator: '3',
+          id: 'rate-good',
+          enabled: false
+        },
+        { 
+          label: 'Rate Easy',
+          accelerator: '4',
+          id: 'rate-easy',
+          enabled: false
+        },
+        { 
+          label: 'Exit Study',
+          accelerator: 'Esc',
+          id: 'exit-study',
+          enabled: false
+        },
+        { type: 'separator' },
+        { 
           label: 'Study Statistics', 
           click: () => showStudyStats()
         }
@@ -386,7 +423,7 @@ export function createMenu(): Menu {
 }
 
 // Update menu item states based on current context
-export function updateMenuState(hasSelectedFile: boolean, currentView: string): void {
+export function updateMenuState(hasSelectedFile: boolean, currentView: string, isStudying: boolean = false): void {
   if (!currentMenu) return;
 
   // Only enable rename/delete when in editor view with a selected file
@@ -400,6 +437,26 @@ export function updateMenuState(hasSelectedFile: boolean, currentView: string): 
     
     if (renameItem) renameItem.enabled = shouldEnable;
     if (deleteItem) deleteItem.enabled = shouldEnable;
+  }
+
+  // Find and update the Study menu items
+  const studyMenu = currentMenu.items.find(item => item.label === 'Study');
+  if (studyMenu && studyMenu.submenu) {
+    const studyItems = [
+      'show-answer',
+      'rate-again', 
+      'rate-hard',
+      'rate-good',
+      'rate-easy',
+      'exit-study'
+    ];
+
+    studyItems.forEach(itemId => {
+      const menuItem = studyMenu.submenu!.items.find(item => (item as any).id === itemId);
+      if (menuItem) {
+        menuItem.enabled = isStudying;
+      }
+    });
   }
 }
 

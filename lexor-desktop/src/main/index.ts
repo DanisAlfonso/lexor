@@ -4,11 +4,13 @@ import { autoUpdater } from 'electron-updater';
 import { createMenu, updateMenuState } from './menu';
 import { WindowManager } from './windows';
 import { watch, FSWatcher } from 'chokidar';
+import { FlashcardDatabase } from './database';
 
 class LexorApp {
   private windowManager: WindowManager;
   private isDevelopment = process.env.NODE_ENV === 'development';
   private folderWatchers: Map<string, FSWatcher> = new Map();
+  private database: FlashcardDatabase | null = null;
 
   constructor() {
     this.windowManager = new WindowManager();
@@ -17,8 +19,9 @@ class LexorApp {
 
   private initializeApp(): void {
     // Handle app ready
-    app.whenReady().then(() => {
+    app.whenReady().then(async () => {
       this.setupProtocolHandler();
+      await this.initializeDatabase();
       this.createMainWindow();
       this.setupMenu();
       this.setupAutoUpdater();
@@ -38,8 +41,9 @@ class LexorApp {
       }
     });
 
-    // Clean up watchers on app quit
+    // Clean up watchers and database on app quit
     app.on('before-quit', async () => {
+      // Close folder watchers
       for (const [path, watcher] of this.folderWatchers.entries()) {
         try {
           await watcher.close();
@@ -48,6 +52,15 @@ class LexorApp {
         }
       }
       this.folderWatchers.clear();
+      
+      // Close database connection
+      if (this.database) {
+        try {
+          this.database.close();
+        } catch (error) {
+          console.error('Failed to close database:', error);
+        }
+      }
     });
 
     // Security: Prevent new window creation
@@ -109,6 +122,15 @@ class LexorApp {
       console.log('Update downloaded');
       autoUpdater.quitAndInstall();
     });
+  }
+
+  private async initializeDatabase(): Promise<void> {
+    try {
+      this.database = await FlashcardDatabase.getInstance();
+      console.log('Database initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize database:', error);
+    }
   }
 
   private setupIpcHandlers(): void {
@@ -531,9 +553,10 @@ Happy creating!
       }
     });
 
+
     // Menu state management
-    ipcMain.on('menu:updateState', (_, hasSelectedFile: boolean, currentView: string) => {
-      updateMenuState(hasSelectedFile, currentView);
+    ipcMain.on('menu:updateState', (_, hasSelectedFile: boolean, currentView: string, isStudying?: boolean) => {
+      updateMenuState(hasSelectedFile, currentView, isStudying || false);
     });
 
     // File watching
@@ -600,6 +623,52 @@ Happy creating!
         return { success: true };
       } catch (error: any) {
         return { success: false, error: error.message };
+      }
+    });
+
+    // Database handlers for flashcards
+    ipcMain.handle('database:query', async (_, sql: string, params?: any[]) => {
+      try {
+        if (!this.database) {
+          await this.initializeDatabase();
+          if (!this.database) {
+            throw new Error('Database not initialized');
+          }
+        }
+        return this.database.query(sql, params || []);
+      } catch (error: any) {
+        console.error('Database query error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('database:execute', async (_, sql: string, params?: any[]) => {
+      try {
+        if (!this.database) {
+          await this.initializeDatabase();
+          if (!this.database) {
+            throw new Error('Database not initialized');
+          }
+        }
+        return this.database.execute(sql, params || []);
+      } catch (error: any) {
+        console.error('Database execute error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('database:transaction', async (_, queries: Array<{ sql: string; params?: any[] }>) => {
+      try {
+        if (!this.database) {
+          await this.initializeDatabase();
+          if (!this.database) {
+            throw new Error('Database not initialized');
+          }
+        }
+        return this.database.transaction(queries);
+      } catch (error: any) {
+        console.error('Database transaction error:', error);
+        throw error;
       }
     });
   }
