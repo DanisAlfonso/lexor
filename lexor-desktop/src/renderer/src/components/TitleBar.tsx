@@ -1,10 +1,12 @@
 import React from 'react';
 import { useAppStore } from '../stores/appStore';
+import { useFlashcardStore } from '../stores/flashcardStore';
 import { clsx } from 'clsx';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 
 export function TitleBar() {
   const { currentDocument, isDocumentModified, theme, sidebarCollapsed, toggleSidebar, currentView } = useAppStore();
+  const { currentSession } = useFlashcardStore();
   
   // Determine if we should use dark mode
   const isDarkMode = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -14,8 +16,14 @@ export function TitleBar() {
     return null;
   }
 
-  // Determine the title based on current view
+  // Determine the title based on current view and study state
   const getTitle = () => {
+    // If there's an active study session, show study progress regardless of currentView
+    if (currentSession) {
+      const reviewedCount = currentSession.current_index;
+      return `Study Session (${reviewedCount} reviewed)`;
+    }
+    
     switch (currentView) {
       case 'flashcards':
         return 'Flashcards';
@@ -69,7 +77,7 @@ export function TitleBar() {
           <span className="truncate text-center">
             {title}
           </span>
-          {currentView === 'editor' && isDocumentModified && (
+          {currentView === 'editor' && !currentSession && isDocumentModified && (
             <span className={clsx(
               'flex-shrink-0',
               isDarkMode ? "text-accent-yellow" : "text-gray-400"

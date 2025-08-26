@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  ArrowLeftIcon,
   ArrowRightIcon,
   EyeIcon,
   CheckIcon,
@@ -28,6 +27,7 @@ interface FlashcardDisplayProps {
   onRate: (rating: Rating) => void;
   currentIndex: number;
   totalCards: number;
+  showProgressUI: boolean;
 }
 
 // Utility function to extract Y rotation angle from transform matrix
@@ -55,7 +55,8 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
   onShowAnswer,
   onRate,
   currentIndex,
-  totalCards
+  totalCards,
+  showProgressUI
 }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [showBackContent, setShowBackContent] = useState(false);
@@ -205,46 +206,61 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[500px] p-6">
+    <div className="flex flex-col items-center justify-center min-h-[600px] p-4">
       {/* Progress indicator */}
-      <div className="w-full max-w-2xl mb-6">
-        <div className="flex items-center justify-between text-sm mb-2">
-          <span className={isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-600'}>
-            Card {currentIndex + 1} of {totalCards}
-          </span>
-          <span className={clsx(
-            'px-2 py-1 rounded-md text-xs',
-            isDarkMode ? 'bg-kanagawa-ink4 text-kanagawa-oldwhite' : 'bg-gray-100 text-gray-700'
+      <div 
+        className={clsx(
+          'w-full max-w-4xl transition-all duration-500 ease-out overflow-hidden',
+          showProgressUI 
+            ? 'mb-6 max-h-20 opacity-100 scale-100' 
+            : 'mb-0 max-h-0 opacity-0 scale-95'
+        )}
+      >
+        <div className="transform transition-transform duration-500 ease-out">
+          <div className="flex items-center justify-between text-sm mb-2">
+            <span className={clsx(
+              'transition-all duration-300 ease-out',
+              isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-600',
+              showProgressUI ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0'
+            )}>
+              Card {currentIndex + 1} of {totalCards}
+            </span>
+            <span className={clsx(
+              'px-2 py-1 rounded-md text-xs transition-all duration-300 ease-out delay-75',
+              isDarkMode ? 'bg-kanagawa-ink4 text-kanagawa-oldwhite' : 'bg-gray-100 text-gray-700',
+              showProgressUI ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0'
+            )}>
+              {card.deck_name}
+            </span>
+          </div>
+          <div className={clsx(
+            'w-full bg-opacity-30 rounded-full h-2 transition-all duration-400 ease-out delay-100',
+            isDarkMode ? 'bg-kanagawa-ink5' : 'bg-gray-200',
+            showProgressUI ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
           )}>
-            {card.deck_name}
-          </span>
-        </div>
-        <div className={clsx(
-          'w-full bg-opacity-30 rounded-full h-2',
-          isDarkMode ? 'bg-kanagawa-ink5' : 'bg-gray-200'
-        )}>
-          <div
-            className="bg-primary-500 h-2 rounded-full transition-all duration-500"
-            style={{ width: `${((currentIndex) / totalCards) * 100}%` }}
-          />
+            <div
+              className="bg-primary-500 h-2 rounded-full transition-all duration-500"
+              style={{ width: `${((currentIndex) / totalCards) * 100}%` }}
+            />
+          </div>
         </div>
       </div>
 
       {/* Flashcard */}
       <div 
-        className="relative w-full max-w-2xl"
+        className="relative w-full max-w-4xl"
         style={{ perspective: '1200px' }}
       >
         <div
           ref={cardRef}
           className={clsx(
-            'relative w-full min-h-[300px] rounded-2xl cursor-pointer',
+            'relative w-full min-h-[600px] rounded-2xl cursor-pointer',
             isFlipped && 'rotate-y-180'
           )}
           style={{ 
             transformStyle: 'preserve-3d',
             transformOrigin: 'center center',
-            transition: 'transform 20000ms ease-out',
+            transition: 'transform 1000ms ease-out',
             transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
             filter: `drop-shadow(0 10px 20px rgba(0, 0, 0, ${isDarkMode ? '0.2' : '0.1'}))`
           }}
@@ -287,8 +303,8 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
               className={clsx(
                 'absolute inset-0 w-full h-full rounded-2xl p-8 flex flex-col justify-center',
                 isDarkMode 
-                  ? 'bg-kanagawa-ink3 border border-kanagawa-ink4' 
-                  : 'bg-gray-50 border border-gray-200 shadow-sm'
+                  ? 'bg-kanagawa-ink4 border border-kanagawa-ink5 bg-opacity-95' 
+                  : 'bg-gray-50 bg-opacity-60 border border-gray-200 shadow-sm'
               )}
               style={{
                 transform: 'rotateY(180deg)'
@@ -337,6 +353,7 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
   
   const [sessionStartTime] = useState<Date>(new Date());
   const [cardsReviewed, setCardsReviewed] = useState(0);
+  const [showProgressUI, setShowProgressUI] = useState(true);
   
   // Determine theme
   const isDarkMode = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -372,6 +389,12 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
         break;
       case 'Escape':
         handleExit();
+        break;
+      case 'i':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          setShowProgressUI(prev => !prev);
+        }
         break;
     }
   }, [currentCard, currentSession, showAnswer]);
@@ -500,39 +523,6 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
       'h-full flex flex-col',
       isDarkMode ? 'bg-kanagawa-ink3' : 'bg-gray-50'
     )}>
-      {/* Header */}
-      <div className={clsx(
-        'flex items-center justify-between p-4 border-b',
-        isDarkMode ? 'border-kanagawa-ink5' : 'border-gray-200'
-      )}>
-        <button
-          onClick={handleExit}
-          className={clsx(
-            'flex items-center px-3 py-2 rounded-lg transition-colors duration-200',
-            isDarkMode
-              ? 'hover:bg-kanagawa-ink4 text-kanagawa-oldwhite'
-              : 'hover:bg-gray-100 text-gray-600'
-          )}
-        >
-          <ArrowLeftIcon className="h-4 w-4 mr-2" />
-          Exit Study
-        </button>
-
-        <div className={clsx(
-          'text-sm font-medium',
-          isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
-        )}>
-          Study Session
-        </div>
-
-        <div className={clsx(
-          'text-sm',
-          isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-500'
-        )}>
-          {cardsReviewed} reviewed
-        </div>
-      </div>
-
       {/* Study Interface */}
       <div className="flex-1">
         <FlashcardDisplay
@@ -543,6 +533,7 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
           onRate={handleRate}
           currentIndex={currentSession.current_index}
           totalCards={currentSession.total_cards}
+          showProgressUI={showProgressUI}
         />
       </div>
     </div>
