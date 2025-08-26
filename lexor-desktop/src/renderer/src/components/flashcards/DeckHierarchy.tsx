@@ -42,6 +42,7 @@ const DeckNode: React.FC<DeckNodeProps> = ({
   isDarkMode
 }) => {
   const hasChildren = deck.children && deck.children.length > 0;
+  const isCollection = !deck.file_path; // Collections have no file_path
   const [showMenu, setShowMenu] = useState(false);
   const [stats, setStats] = useState<DeckStats | null>(null);
   const [isOrphaned, setIsOrphaned] = useState(false);
@@ -52,7 +53,7 @@ const DeckNode: React.FC<DeckNodeProps> = ({
     const loadStats = async () => {
       if (deck.id) {
         try {
-          const deckStats = await service.getDeckStats(deck.id, hasChildren);
+          const deckStats = await service.getDeckStats(deck.id, isCollection);
           setStats(deckStats);
         } catch (error) {
           console.error('Failed to load deck stats:', error);
@@ -76,7 +77,7 @@ const DeckNode: React.FC<DeckNodeProps> = ({
 
     loadStats();
     checkOrphaned();
-  }, [deck.id, deck.file_path, deck.is_collection, service, hasChildren]);
+  }, [deck.id, deck.file_path, deck.is_collection, service, isCollection]);
 
   const handleToggleExpand = (e: React.MouseEvent) => {
     e.stopPropagation();

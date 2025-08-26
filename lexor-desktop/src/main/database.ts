@@ -247,21 +247,68 @@ export class FlashcardDatabase {
 
   public getDeck(id: number): Deck | undefined {
     const stmt = this.db.prepare(`
-      SELECT d.*, COUNT(f.id) as card_count
-      FROM decks d
-      LEFT JOIN flashcards f ON d.id = f.deck_id
+      WITH deck_card_count AS (
+        SELECT 
+          CASE 
+            WHEN d.file_path IS NULL THEN
+              -- Collection deck: count cards from all child decks recursively
+              COALESCE((
+                WITH RECURSIVE child_decks AS (
+                  SELECT id FROM decks WHERE id = d.id
+                  UNION ALL
+                  SELECT child.id FROM decks child
+                  JOIN child_decks parent ON child.parent_id = parent.id
+                )
+                SELECT COUNT(f.id) 
+                FROM flashcards f 
+                JOIN child_decks cd ON f.deck_id = cd.id 
+                WHERE cd.id != d.id  -- Exclude the collection itself
+              ), 0)
+            ELSE 
+              -- File-based deck: count its own cards
+              COALESCE((SELECT COUNT(id) FROM flashcards WHERE deck_id = d.id), 0)
+          END as card_count
+        FROM decks d WHERE d.id = ?
+      )
+      SELECT d.*, dcc.card_count
+      FROM decks d, deck_card_count dcc
       WHERE d.id = ?
-      GROUP BY d.id
     `);
-    return stmt.get(id) as Deck | undefined;
+    return stmt.get(id, id) as Deck | undefined;
   }
 
   public getAllDecks(): Deck[] {
     const stmt = this.db.prepare(`
-      SELECT d.*, COUNT(f.id) as card_count
+      WITH RECURSIVE deck_hierarchy AS (
+        SELECT id, parent_id, name, file_path FROM decks
+      ),
+      deck_card_counts AS (
+        SELECT 
+          d.id,
+          CASE 
+            WHEN d.file_path IS NULL THEN
+              -- Collection deck: count cards from all child decks recursively
+              COALESCE((
+                WITH RECURSIVE child_decks AS (
+                  SELECT id FROM decks WHERE id = d.id
+                  UNION ALL
+                  SELECT child.id FROM decks child
+                  JOIN child_decks parent ON child.parent_id = parent.id
+                )
+                SELECT COUNT(f.id) 
+                FROM flashcards f 
+                JOIN child_decks cd ON f.deck_id = cd.id 
+                WHERE cd.id != d.id  -- Exclude the collection itself
+              ), 0)
+            ELSE 
+              -- File-based deck: count its own cards
+              COALESCE((SELECT COUNT(id) FROM flashcards WHERE deck_id = d.id), 0)
+          END as card_count
+        FROM decks d
+      )
+      SELECT d.*, dcc.card_count
       FROM decks d
-      LEFT JOIN flashcards f ON d.id = f.deck_id
-      GROUP BY d.id
+      JOIN deck_card_counts dcc ON d.id = dcc.id
       ORDER BY d.collection_path, d.name
     `);
     return stmt.all() as Deck[];
@@ -301,11 +348,34 @@ export class FlashcardDatabase {
 
   public getChildDecks(parentId: number): Deck[] {
     const stmt = this.db.prepare(`
-      SELECT d.*, COUNT(f.id) as card_count
+      WITH deck_card_counts AS (
+        SELECT 
+          d.id,
+          CASE 
+            WHEN d.file_path IS NULL THEN
+              -- Collection deck: count cards from all child decks recursively
+              COALESCE((
+                WITH RECURSIVE child_decks AS (
+                  SELECT id FROM decks WHERE id = d.id
+                  UNION ALL
+                  SELECT child.id FROM decks child
+                  JOIN child_decks parent ON child.parent_id = parent.id
+                )
+                SELECT COUNT(f.id) 
+                FROM flashcards f 
+                JOIN child_decks cd ON f.deck_id = cd.id 
+                WHERE cd.id != d.id  -- Exclude the collection itself
+              ), 0)
+            ELSE 
+              -- File-based deck: count its own cards
+              COALESCE((SELECT COUNT(id) FROM flashcards WHERE deck_id = d.id), 0)
+          END as card_count
+        FROM decks d
+        WHERE d.parent_id = ?
+      )
+      SELECT d.*, dcc.card_count
       FROM decks d
-      LEFT JOIN flashcards f ON d.id = f.deck_id
-      WHERE d.parent_id = ?
-      GROUP BY d.id
+      JOIN deck_card_counts dcc ON d.id = dcc.id
       ORDER BY d.name
     `);
     return stmt.all(parentId) as Deck[];
@@ -313,11 +383,34 @@ export class FlashcardDatabase {
 
   public getDecksInCollection(collectionPath: string): Deck[] {
     const stmt = this.db.prepare(`
-      SELECT d.*, COUNT(f.id) as card_count
+      WITH deck_card_counts AS (
+        SELECT 
+          d.id,
+          CASE 
+            WHEN d.file_path IS NULL THEN
+              -- Collection deck: count cards from all child decks recursively
+              COALESCE((
+                WITH RECURSIVE child_decks AS (
+                  SELECT id FROM decks WHERE id = d.id
+                  UNION ALL
+                  SELECT child.id FROM decks child
+                  JOIN child_decks parent ON child.parent_id = parent.id
+                )
+                SELECT COUNT(f.id) 
+                FROM flashcards f 
+                JOIN child_decks cd ON f.deck_id = cd.id 
+                WHERE cd.id != d.id  -- Exclude the collection itself
+              ), 0)
+            ELSE 
+              -- File-based deck: count its own cards
+              COALESCE((SELECT COUNT(id) FROM flashcards WHERE deck_id = d.id), 0)
+          END as card_count
+        FROM decks d
+        WHERE d.collection_path LIKE ?
+      )
+      SELECT d.*, dcc.card_count
       FROM decks d
-      LEFT JOIN flashcards f ON d.id = f.deck_id
-      WHERE d.collection_path LIKE ?
-      GROUP BY d.id
+      JOIN deck_card_counts dcc ON d.id = dcc.id
       ORDER BY d.collection_path, d.name
     `);
     return stmt.all(`${collectionPath}%`) as Deck[];

@@ -50,7 +50,7 @@ export interface FlashcardState {
   importFromCurrentFile: () => Promise<boolean>;
   
   // Actions - Study session
-  startStudySession: (deckId?: number, studyMode?: 'new' | 'due' | 'all') => Promise<void>;
+  startStudySession: (deckId?: number, studyMode?: 'new' | 'due' | 'all', includeChildren?: boolean) => Promise<void>;
   endStudySession: () => void;
   showCardAnswer: () => void;
   reviewCurrentCard: (rating: Rating) => Promise<void>;
@@ -357,23 +357,26 @@ export const useFlashcardStore = create<FlashcardState>()(
     },
 
     // Study session actions
-    startStudySession: async (deckId?: number, studyMode: 'new' | 'due' | 'all' = 'due') => {
+    startStudySession: async (deckId?: number, studyMode: 'new' | 'due' | 'all' = 'due', includeChildren: boolean = false) => {
       const { service } = get();
       set({ isLoading: true, error: null });
       
       try {
         let cards: StudyCard[] = [];
         
+        // Set appropriate limits based on whether we're studying a collection
+        const newCardLimit = includeChildren ? 50 : 20; // Higher limit for collections
+        
         switch (studyMode) {
           case 'new':
-            cards = await service.getNewCards(deckId, 20); // Limit to 20 new cards
+            cards = await service.getNewCards(deckId, newCardLimit, includeChildren);
             break;
           case 'due':
-            cards = await service.getDueCards(deckId);
+            cards = await service.getDueCards(deckId, undefined, includeChildren);
             break;
           case 'all':
-            const dueCards = await service.getDueCards(deckId);
-            const newCards = await service.getNewCards(deckId, 10);
+            const dueCards = await service.getDueCards(deckId, undefined, includeChildren);
+            const newCards = await service.getNewCards(deckId, newCardLimit, includeChildren);
             cards = [...dueCards, ...newCards];
             break;
         }

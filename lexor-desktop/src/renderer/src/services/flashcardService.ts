@@ -78,10 +78,33 @@ export class FlashcardService {
 
   async getAllDecks(): Promise<Deck[]> {
     const rows = await this.query(`
-      SELECT d.*, COUNT(f.id) as card_count
+      WITH deck_card_counts AS (
+        SELECT 
+          d.id,
+          CASE 
+            WHEN d.file_path IS NULL THEN
+              -- Collection deck: count cards from all child decks recursively
+              COALESCE((
+                WITH RECURSIVE child_decks AS (
+                  SELECT id FROM decks WHERE id = d.id
+                  UNION ALL
+                  SELECT child.id FROM decks child
+                  JOIN child_decks parent ON child.parent_id = parent.id
+                )
+                SELECT COUNT(f.id) 
+                FROM flashcards f 
+                JOIN child_decks cd ON f.deck_id = cd.id 
+                WHERE cd.id != d.id  -- Exclude the collection itself
+              ), 0)
+            ELSE 
+              -- File-based deck: count its own cards
+              COALESCE((SELECT COUNT(id) FROM flashcards WHERE deck_id = d.id), 0)
+          END as card_count
+        FROM decks d
+      )
+      SELECT d.*, dcc.card_count
       FROM decks d
-      LEFT JOIN flashcards f ON d.id = f.deck_id
-      GROUP BY d.id
+      JOIN deck_card_counts dcc ON d.id = dcc.id
       ORDER BY d.collection_path, d.name
     `);
     
@@ -125,11 +148,34 @@ export class FlashcardService {
 
   async getChildDecks(parentId: number): Promise<Deck[]> {
     const rows = await this.query(`
-      SELECT d.*, COUNT(f.id) as card_count
+      WITH deck_card_counts AS (
+        SELECT 
+          d.id,
+          CASE 
+            WHEN d.file_path IS NULL THEN
+              -- Collection deck: count cards from all child decks recursively
+              COALESCE((
+                WITH RECURSIVE child_decks AS (
+                  SELECT id FROM decks WHERE id = d.id
+                  UNION ALL
+                  SELECT child.id FROM decks child
+                  JOIN child_decks parent ON child.parent_id = parent.id
+                )
+                SELECT COUNT(f.id) 
+                FROM flashcards f 
+                JOIN child_decks cd ON f.deck_id = cd.id 
+                WHERE cd.id != d.id  -- Exclude the collection itself
+              ), 0)
+            ELSE 
+              -- File-based deck: count its own cards
+              COALESCE((SELECT COUNT(id) FROM flashcards WHERE deck_id = d.id), 0)
+          END as card_count
+        FROM decks d
+        WHERE d.parent_id = ?
+      )
+      SELECT d.*, dcc.card_count
       FROM decks d
-      LEFT JOIN flashcards f ON d.id = f.deck_id
-      WHERE d.parent_id = ?
-      GROUP BY d.id
+      JOIN deck_card_counts dcc ON d.id = dcc.id
       ORDER BY d.name
     `, [parentId]);
     
@@ -168,12 +214,33 @@ export class FlashcardService {
 
   async getDeck(deckId: number): Promise<Deck | null> {
     const rows = await this.query(`
-      SELECT d.*, COUNT(f.id) as card_count
-      FROM decks d
-      LEFT JOIN flashcards f ON d.id = f.deck_id
+      WITH deck_card_count AS (
+        SELECT 
+          CASE 
+            WHEN d.file_path IS NULL THEN
+              -- Collection deck: count cards from all child decks recursively
+              COALESCE((
+                WITH RECURSIVE child_decks AS (
+                  SELECT id FROM decks WHERE id = d.id
+                  UNION ALL
+                  SELECT child.id FROM decks child
+                  JOIN child_decks parent ON child.parent_id = parent.id
+                )
+                SELECT COUNT(f.id) 
+                FROM flashcards f 
+                JOIN child_decks cd ON f.deck_id = cd.id 
+                WHERE cd.id != d.id  -- Exclude the collection itself
+              ), 0)
+            ELSE 
+              -- File-based deck: count its own cards
+              COALESCE((SELECT COUNT(id) FROM flashcards WHERE deck_id = d.id), 0)
+          END as card_count
+        FROM decks d WHERE d.id = ?
+      )
+      SELECT d.*, dcc.card_count
+      FROM decks d, deck_card_count dcc
       WHERE d.id = ?
-      GROUP BY d.id
-    `, [deckId]);
+    `, [deckId, deckId]);
     
     return rows.length > 0 ? rows[0] as Deck : null;
   }
@@ -707,25 +774,48 @@ export class FlashcardService {
     return this.mapToStudyCards(rows);
   }
 
-  async getNewCards(deckId?: number, limit?: number): Promise<StudyCard[]> {
-    let sql = `
-      SELECT f.*, cs.*, d.name as deck_name,
-             f.id as card_id, cs.due_date, cs.stability, cs.difficulty, 
-             cs.elapsed_days, cs.scheduled_days, cs.reps, cs.lapses, cs.state, cs.last_review
-      FROM flashcards f
-      JOIN card_states cs ON f.id = cs.card_id
-      JOIN decks d ON f.deck_id = d.id
-      WHERE cs.state = 0
-    `;
+  async getNewCards(deckId?: number, limit?: number, includeChildren = false): Promise<StudyCard[]> {
+    let sql: string;
+    let params: any[] = [];
     
-    const params: any[] = [];
-    
-    if (deckId) {
-      sql += ' AND f.deck_id = ?';
-      params.push(deckId);
+    if (deckId && includeChildren) {
+      // Use recursive CTE to get cards from deck and all children
+      sql = `
+        WITH RECURSIVE deck_hierarchy AS (
+          SELECT id FROM decks WHERE id = ?
+          UNION ALL
+          SELECT d.id FROM decks d 
+          JOIN deck_hierarchy dh ON d.parent_id = dh.id
+        )
+        SELECT f.*, cs.*, d.name as deck_name, d.collection_path,
+               f.id as card_id, cs.due_date, cs.stability, cs.difficulty, 
+               cs.elapsed_days, cs.scheduled_days, cs.reps, cs.lapses, cs.state, cs.last_review
+        FROM flashcards f
+        JOIN card_states cs ON f.id = cs.card_id
+        JOIN decks d ON f.deck_id = d.id
+        WHERE f.deck_id IN (SELECT id FROM deck_hierarchy)
+          AND cs.state = 0
+        ORDER BY f.created_at ASC
+      `;
+      params = [deckId];
+    } else {
+      sql = `
+        SELECT f.*, cs.*, d.name as deck_name,
+               f.id as card_id, cs.due_date, cs.stability, cs.difficulty, 
+               cs.elapsed_days, cs.scheduled_days, cs.reps, cs.lapses, cs.state, cs.last_review
+        FROM flashcards f
+        JOIN card_states cs ON f.id = cs.card_id
+        JOIN decks d ON f.deck_id = d.id
+        WHERE cs.state = 0
+      `;
+      
+      if (deckId) {
+        sql += ' AND f.deck_id = ?';
+        params.push(deckId);
+      }
+      
+      sql += ' ORDER BY f.created_at ASC';
     }
-    
-    sql += ' ORDER BY f.created_at ASC';
     
     if (limit) {
       sql += ' LIMIT ?';

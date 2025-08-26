@@ -74,9 +74,12 @@ export function FlashcardView() {
     setSelectedDeck(deck);
   };
 
-  const handleStartStudy = async (deck: Deck, includeChildren: boolean) => {
+  const handleStartStudy = async (deck: Deck, includeChildren?: boolean) => {
     setSelectedDeck(deck);
-    await startStudySession(deck.id, 'all', includeChildren);
+    // For collections (no file_path), always include children
+    // For file-based decks, use the provided includeChildren parameter
+    const shouldIncludeChildren = !deck.file_path || includeChildren || false;
+    await startStudySession(deck.id, 'all', shouldIncludeChildren);
   };
 
   const handleStudyComplete = () => {
@@ -324,79 +327,11 @@ export function FlashcardView() {
                     )}
                   >
                     <PlayIcon className="h-5 w-5" />
-                    <span>Study Now</span>
+                    <span>{selectedDeck.file_path ? 'Study This Deck' : 'Study Collection'}</span>
                   </button>
                 </div>
               </div>
 
-              {/* Study options */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className={clsx(
-                  'p-6 rounded-xl border',
-                  isDarkMode 
-                    ? 'bg-kanagawa-ink4 border-kanagawa-ink5' 
-                    : 'bg-white border-gray-200'
-                )}>
-                  <h3 className={clsx(
-                    'text-lg font-semibold mb-2',
-                    isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
-                  )}>
-                    Quick Study
-                  </h3>
-                  <p className={clsx(
-                    'mb-4 text-sm',
-                    isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-600'
-                  )}>
-                    Review cards that are due for today
-                  </p>
-                  <button 
-                    onClick={() => handleStartStudy(selectedDeck, false)}
-                    className={clsx(
-                      'w-full flex items-center justify-center space-x-2 py-3 rounded-lg font-medium transition-colors duration-200',
-                      isDarkMode 
-                        ? 'bg-accent-blue hover:bg-primary-700 text-kanagawa-ink3' 
-                        : 'bg-primary-600 hover:bg-primary-700 text-white'
-                    )}
-                  >
-                    <PlayIcon className="h-4 w-4" />
-                    <span>Study This Deck</span>
-                  </button>
-                </div>
-
-                {selectedDeck.children && selectedDeck.children.length > 0 && (
-                  <div className={clsx(
-                    'p-6 rounded-xl border',
-                    isDarkMode 
-                      ? 'bg-kanagawa-ink4 border-kanagawa-ink5' 
-                      : 'bg-white border-gray-200'
-                  )}>
-                    <h3 className={clsx(
-                      'text-lg font-semibold mb-2',
-                      isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
-                    )}>
-                      Collection Study
-                    </h3>
-                    <p className={clsx(
-                      'mb-4 text-sm',
-                      isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-600'
-                    )}>
-                      Study all cards in this collection and its subcollections
-                    </p>
-                    <button 
-                      onClick={() => handleStartStudy(selectedDeck, true)}
-                      className={clsx(
-                        'w-full flex items-center justify-center space-x-2 py-3 rounded-lg font-medium transition-colors duration-200',
-                        isDarkMode 
-                          ? 'bg-kanagawa-ink5 hover:bg-kanagawa-ink4 text-kanagawa-oldwhite' 
-                          : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
-                      )}
-                    >
-                      <PlusIcon className="h-4 w-4" />
-                      <span>Study Collection</span>
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
           ) : (
             // Welcome view
