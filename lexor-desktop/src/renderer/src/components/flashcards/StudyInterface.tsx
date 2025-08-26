@@ -206,7 +206,7 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[600px] p-4">
+    <div className="flex flex-col items-center justify-center h-full p-4 min-h-0">
       {/* Progress indicator */}
       <div 
         className={clsx(
@@ -248,21 +248,23 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
 
       {/* Flashcard */}
       <div 
-        className="relative w-full max-w-4xl"
+        className="relative w-full max-w-4xl flex-1 min-h-0"
         style={{ perspective: '1200px' }}
       >
         <div
           ref={cardRef}
           className={clsx(
-            'relative w-full min-h-[600px] rounded-2xl cursor-pointer',
+            'relative w-full h-full rounded-2xl cursor-pointer',
             isFlipped && 'rotate-y-180'
           )}
           style={{ 
             transformStyle: 'preserve-3d',
             transformOrigin: 'center center',
-            transition: 'transform 1000ms ease-out',
+            transition: 'transform 500ms ease-out',
             transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
-            filter: `drop-shadow(0 10px 20px rgba(0, 0, 0, ${isDarkMode ? '0.2' : '0.1'}))`
+            filter: `drop-shadow(0 10px 20px rgba(0, 0, 0, ${isDarkMode ? '0.2' : '0.1'}))`,
+            minHeight: 'min(60vh, 400px)',
+            maxHeight: 'min(80vh, 800px)'
           }}
           onClick={handleShowAnswer}
         >
@@ -319,7 +321,7 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
                 </div>
                 <div 
                   className={clsx(
-                    'text-lg font-medium leading-relaxed mb-8',
+                    'text-lg font-medium leading-relaxed',
                     isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
                   )}
                   dangerouslySetInnerHTML={{ 
