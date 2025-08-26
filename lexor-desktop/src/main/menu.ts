@@ -234,6 +234,12 @@ export function createMenu(): Menu {
         },
         { type: 'separator' },
         { 
+          label: 'Discover Library', 
+          accelerator: 'CmdOrCtrl+D',
+          click: () => discoverLibrary()
+        },
+        { type: 'separator' },
+        { 
           label: 'Import Deck...', 
           click: () => importDeck()
         },
@@ -653,6 +659,11 @@ function createNewFlashcard(): void {
 function startStudySession(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   focusedWindow?.webContents.send('menu:study-session');
+}
+
+function discoverLibrary(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:discover-library');
 }
 
 function importDeck(): void {

@@ -166,6 +166,10 @@ const electronAPI = {
       ipcRenderer.on('menu:study-session', callback);
       return () => ipcRenderer.removeListener('menu:study-session', callback);
     },
+    onDiscoverLibrary: (callback: () => void) => {
+      ipcRenderer.on('menu:discover-library', callback);
+      return () => ipcRenderer.removeListener('menu:discover-library', callback);
+    },
     onImportDeck: (callback: () => void) => {
       ipcRenderer.on('menu:import-deck', callback);
       return () => ipcRenderer.removeListener('menu:import-deck', callback);

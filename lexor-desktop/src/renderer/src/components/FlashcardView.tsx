@@ -226,54 +226,11 @@ export function FlashcardView() {
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <div className={clsx(
-          'flex items-center justify-between p-6 border-b',
-          isDarkMode ? 'border-kanagawa-ink5' : 'border-gray-200'
-        )}>
-          <div>
-            <h1 className={clsx(
-              'text-2xl font-bold',
-              isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
-            )}>
-              {selectedDeck ? selectedDeck.name : 'Flashcards'}
-            </h1>
-            <p className={clsx(
-              'text-sm mt-1',
-              isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-600'
-            )}>
-              {selectedDeck 
-                ? `Collection: ${selectedDeck.collection_path || selectedDeck.name}`
-                : 'Manage your flashcard collections and study sessions'
-              }
-            </p>
-          </div>
-
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={handleDiscoverLibrary}
-              disabled={isLoading}
-              className={clsx(
-                'flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors duration-200',
-                isLoading
-                  ? isDarkMode
-                    ? 'bg-kanagawa-ink5 text-kanagawa-gray cursor-not-allowed'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : isDarkMode
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
-                    : 'bg-green-600 hover:bg-green-700 text-white'
-              )}
-            >
-              <span>{isLoading ? 'Discovering...' : 'Discover Library'}</span>
-            </button>
-
-          </div>
-        </div>
 
         {/* Error notification */}
         {error && (
           <div className={clsx(
-            'mx-6 mt-4 p-4 rounded-lg border-l-4 border-red-400',
+            'mx-6 mt-6 p-4 rounded-lg border-l-4 border-red-400',
             isDarkMode 
               ? 'bg-red-900 bg-opacity-20 text-red-300' 
               : 'bg-red-50 text-red-700'
@@ -285,7 +242,7 @@ export function FlashcardView() {
         {/* Success notification */}
         {successMessage && (
           <div className={clsx(
-            'mx-6 mt-4 p-4 rounded-lg border-l-4 border-green-400',
+            'mx-6 mt-6 p-4 rounded-lg border-l-4 border-green-400',
             isDarkMode 
               ? 'bg-green-900 bg-opacity-20 text-green-300' 
               : 'bg-green-50 text-green-700'
@@ -334,6 +291,14 @@ export function FlashcardView() {
                           isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-600'
                         )}>
                           {selectedDeck.description}
+                        </p>
+                      )}
+                      {selectedDeck.collection_path && (
+                        <p className={clsx(
+                          'text-xs mt-1',
+                          isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+                        )}>
+                          Collection: {selectedDeck.collection_path}
                         </p>
                       )}
                       <div className={clsx(

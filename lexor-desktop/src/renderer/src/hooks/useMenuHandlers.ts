@@ -33,7 +33,7 @@ export function useMenuHandlers() {
     toggleScrollbar,
   } = useAppStore();
 
-  const { currentSession } = useFlashcardStore();
+  const { currentSession, discoverAndSyncLibrary } = useFlashcardStore();
 
   // Update menu state when selection or view changes
   useEffect(() => {
@@ -236,6 +236,18 @@ export function useMenuHandlers() {
       setCurrentView('study');
     };
 
+    const handleDiscoverLibrary = async () => {
+      try {
+        // Switch to flashcards view to show the results
+        setCurrentView('flashcards');
+        
+        // Run the discovery process
+        await discoverAndSyncLibrary();
+      } catch (error) {
+        console.error('Failed to discover library:', error);
+      }
+    };
+
     const handleImportDeck = () => {
       // TODO: Implement deck import
       console.log('Import deck not implemented yet');
@@ -362,6 +374,7 @@ export function useMenuHandlers() {
       window.electronAPI.menu.onResetZoom(resetZoom),
       window.electronAPI.menu.onNewFlashcard(handleNewFlashcard),
       window.electronAPI.menu.onStudySession(handleStudySession),
+      window.electronAPI.menu.onDiscoverLibrary(handleDiscoverLibrary),
       window.electronAPI.menu.onImportDeck(handleImportDeck),
       window.electronAPI.menu.onExportDeck(handleExportDeck),
       window.electronAPI.menu.onStudyStats(handleStudyStats),
@@ -405,5 +418,6 @@ export function useMenuHandlers() {
     swapPanes,
     isSplitScreenMode,
     toggleScrollbar,
+    discoverAndSyncLibrary,
   ]);
 }

@@ -4,7 +4,7 @@ import { clsx } from 'clsx';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 
 export function TitleBar() {
-  const { currentDocument, isDocumentModified, theme, sidebarCollapsed, toggleSidebar } = useAppStore();
+  const { currentDocument, isDocumentModified, theme, sidebarCollapsed, toggleSidebar, currentView } = useAppStore();
   
   // Determine if we should use dark mode
   const isDarkMode = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -14,9 +14,24 @@ export function TitleBar() {
     return null;
   }
 
-  const documentName = currentDocument 
-    ? currentDocument.split('/').pop() || 'Untitled'
-    : 'Untitled';
+  // Determine the title based on current view
+  const getTitle = () => {
+    switch (currentView) {
+      case 'flashcards':
+        return 'Flashcards';
+      case 'study':
+        return 'Study';
+      case 'settings':
+        return 'Settings';
+      case 'editor':
+      default:
+        return currentDocument 
+          ? currentDocument.split('/').pop() || 'Untitled'
+          : 'Untitled';
+    }
+  };
+
+  const title = getTitle();
 
   return (
     <div 
@@ -52,9 +67,9 @@ export function TitleBar() {
       <div className="flex items-center justify-center pointer-events-none min-w-0">
         <div className="flex items-center space-x-1 min-w-0">
           <span className="truncate text-center">
-            {documentName}
+            {title}
           </span>
-          {isDocumentModified && (
+          {currentView === 'editor' && isDocumentModified && (
             <span className={clsx(
               'flex-shrink-0',
               isDarkMode ? "text-accent-yellow" : "text-gray-400"

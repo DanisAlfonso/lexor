@@ -221,7 +221,9 @@ const DeckNode: React.FC<DeckNodeProps> = ({
             {hasDueCards && (
               <div className={clsx(
                 'ml-2 px-2 py-0.5 rounded-full text-xs font-medium',
-                'bg-primary-100 text-primary-700'
+                isDarkMode 
+                  ? 'bg-kanagawa-ink5 text-kanagawa-white' 
+                  : 'bg-gray-100 text-gray-700'
               )}>
                 {stats?.due_cards}
               </div>
@@ -455,19 +457,6 @@ export const DeckHierarchy: React.FC<DeckHierarchyProps> = ({
       'h-full flex flex-col',
       isDarkMode ? 'bg-kanagawa-ink3' : 'bg-gray-50'
     )}>
-      {/* Header */}
-      <div className={clsx(
-        'p-4 border-b',
-        isDarkMode ? 'border-kanagawa-ink5' : 'border-gray-200'
-      )}>
-        <h2 className={clsx(
-          'text-lg font-semibold',
-          isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
-        )}>
-          Flashcard Collections
-        </h2>
-      </div>
-
       {/* Deck Tree */}
       <div className="flex-1 overflow-y-auto p-2">
         <div className="space-y-1">
