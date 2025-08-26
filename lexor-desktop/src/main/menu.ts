@@ -191,6 +191,17 @@ export function createMenu(): Menu {
         },
         { type: 'separator' },
         { 
+          label: 'Flashcard Classic View', 
+          accelerator: 'CmdOrCtrl+3',
+          click: () => switchFlashcardView('classic')
+        },
+        { 
+          label: 'Flashcard Grid View', 
+          accelerator: 'CmdOrCtrl+4',
+          click: () => switchFlashcardView('grid')
+        },
+        { type: 'separator' },
+        { 
           label: 'Zoom In', 
           accelerator: 'CmdOrCtrl+Plus',
           click: () => zoomIn()
@@ -634,6 +645,11 @@ function swapPanes(): void {
 function toggleScrollbar(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   focusedWindow?.webContents.send('menu:toggle-scrollbar');
+}
+
+function switchFlashcardView(viewMode: string): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:switch-flashcard-view', viewMode);
 }
 
 function zoomIn(): void {

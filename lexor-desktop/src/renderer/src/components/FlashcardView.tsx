@@ -4,10 +4,12 @@ import { useAppStore } from '../stores/appStore';
 import { useFlashcardStore } from '../stores/flashcardStore';
 import { clsx } from 'clsx';
 import { DeckHierarchy } from './flashcards/DeckHierarchy';
+import { CollectionGrid } from './flashcards/CollectionGrid';
 import { StudyInterface } from './flashcards/StudyInterface';
 import { Deck } from '../../../shared/types/flashcards';
 
 type FlashcardViewMode = 'browse' | 'study';
+type FlashcardLayoutMode = 'classic' | 'grid';
 
 export function FlashcardView() {
   const { theme, currentDocument, documentContent } = useAppStore();
@@ -24,6 +26,50 @@ export function FlashcardView() {
   } = useFlashcardStore();
   
   const [viewMode, setViewMode] = useState<FlashcardViewMode>('browse');
+  const [layoutMode, setLayoutMode] = useState<FlashcardLayoutMode>(() => {
+    // Load from localStorage or default to 'classic'
+    const saved = localStorage.getItem('flashcard-layout-mode');
+    return (saved as FlashcardLayoutMode) || 'classic';
+  });
+
+  // Transition state for smooth switching
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [nextLayoutMode, setNextLayoutMode] = useState<FlashcardLayoutMode | null>(null);
+
+  // Smooth layout mode switching with animation
+  const switchLayoutMode = (newMode: FlashcardLayoutMode) => {
+    if (newMode === layoutMode || isTransitioning) return;
+    
+    setIsTransitioning(true);
+    setNextLayoutMode(newMode);
+    
+    // Wait for CSS fade out to complete, then switch content
+    setTimeout(() => {
+      setLayoutMode(newMode);
+      localStorage.setItem('flashcard-layout-mode', newMode);
+      
+      // Immediately end transition so CSS can fade in
+      setTimeout(() => {
+        setIsTransitioning(false);
+        setNextLayoutMode(null);
+      }, 10); // Just a tiny delay to ensure state update
+    }, 400); // Wait for CSS fade out (400ms)
+  };
+
+  // Listen for menu-triggered view changes
+  useEffect(() => {
+    const handleSwitchFlashcardView = (event: CustomEvent) => {
+      const { viewMode } = event.detail;
+      if (viewMode === 'classic' || viewMode === 'grid') {
+        switchLayoutMode(viewMode);
+      }
+    };
+
+    window.addEventListener('switchFlashcardView', handleSwitchFlashcardView as EventListener);
+    return () => {
+      window.removeEventListener('switchFlashcardView', handleSwitchFlashcardView as EventListener);
+    };
+  }, [layoutMode, isTransitioning]);
   const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isWatchingFile, setIsWatchingFile] = useState(false);
@@ -81,6 +127,13 @@ export function FlashcardView() {
     const shouldIncludeChildren = !deck.file_path || includeChildren || false;
     await startStudySession(deck.id, 'all', shouldIncludeChildren);
   };
+
+  const handleStartStudyFromGrid = async (deck: Deck) => {
+    // For collections (no file_path), always include children
+    const shouldIncludeChildren = !deck.file_path;
+    await startStudySession(deck.id, 'all', shouldIncludeChildren);
+  };
+
 
   const handleStudyComplete = () => {
     setViewMode('browse');
@@ -212,172 +265,217 @@ export function FlashcardView() {
   
   return (
     <div className={clsx(
-      'h-full flex',
+      'h-full flex flex-col',
       isDarkMode ? 'bg-kanagawa-ink3' : 'bg-gray-50'
     )}>
-      {/* Sidebar with deck hierarchy */}
-      <div className={clsx(
-        'w-80 border-r',
-        isDarkMode ? 'border-kanagawa-ink5' : 'border-gray-200'
-      )}>
-        <DeckHierarchy
-          onSelectDeck={handleSelectDeck}
-          onStartStudy={handleStartStudy}
-          showActions={true}
-        />
-      </div>
-
-      {/* Main content area */}
-      <div className="flex-1 flex flex-col">
-
-        {/* Error notification */}
-        {error && (
-          <div className={clsx(
-            'mx-6 mt-6 p-4 rounded-lg border-l-4 border-red-400',
-            isDarkMode 
-              ? 'bg-red-900 bg-opacity-20 text-red-300' 
-              : 'bg-red-50 text-red-700'
-          )}>
-            <p className="text-sm">{error}</p>
-          </div>
-        )}
-
-        {/* Success notification */}
-        {successMessage && (
-          <div className={clsx(
-            'mx-6 mt-6 p-4 rounded-lg border-l-4 border-green-400',
-            isDarkMode 
-              ? 'bg-green-900 bg-opacity-20 text-green-300' 
-              : 'bg-green-50 text-green-700'
-          )}>
-            <p className="text-sm">{successMessage}</p>
-          </div>
-        )}
-
-        {/* Main content */}
-        <div className="flex-1 p-6">
-          {selectedDeck ? (
-            // Deck details view
-            <div className="max-w-4xl mx-auto">
+      {/* Main content area with smooth transitions */}
+      <div className="flex-1 flex relative overflow-hidden">
+        <div 
+          className={clsx(
+            'absolute inset-0 flex transition-all duration-400 ease-in-out',
+            isTransitioning ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'
+          )}
+          style={{ 
+            transitionTimingFunction: 'cubic-bezier(0.4, 0.0, 0.2, 1)',
+            transitionProperty: 'opacity, transform',
+          }}
+        >
+          {layoutMode === 'classic' ? (
+            <>
+              {/* Sidebar with deck hierarchy */}
               <div className={clsx(
-                'rounded-xl p-6 mb-6',
-                isDarkMode ? 'bg-kanagawa-ink4' : 'bg-white'
+                'w-80 border-r',
+                isDarkMode ? 'border-kanagawa-ink5' : 'border-gray-200'
               )}>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center">
-                    <div
-                      className="p-3 rounded-lg mr-4"
-                      style={{ backgroundColor: `${selectedDeck.color || '#6B7280'}20` }}
-                    >
-                      {selectedDeck.is_collection ? (
-                        <PlusIcon 
-                          className="h-6 w-6" 
-                          style={{ color: selectedDeck.color || '#6B7280' }}
-                        />
-                      ) : (
-                        <DocumentTextIcon 
-                          className="h-6 w-6" 
-                          style={{ color: selectedDeck.color || '#6B7280' }}
-                        />
-                      )}
-                    </div>
-                    <div>
-                      <h2 className={clsx(
-                        'text-xl font-semibold',
-                        isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
-                      )}>
-                        {selectedDeck.name}
-                      </h2>
-                      {selectedDeck.description && (
-                        <p className={clsx(
-                          'text-sm mt-1',
-                          isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-600'
-                        )}>
-                          {selectedDeck.description}
-                        </p>
-                      )}
-                      {selectedDeck.collection_path && (
-                        <p className={clsx(
-                          'text-xs mt-1',
-                          isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
-                        )}>
-                          Collection: {selectedDeck.collection_path}
-                        </p>
-                      )}
-                      <div className={clsx(
-                        'flex items-center space-x-4 mt-2 text-sm',
-                        isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-500'
-                      )}>
-                        <span>{selectedDeck.card_count || 0} cards</span>
-                        {selectedDeck.file_path && (
-                          <span>• Linked to file</span>
-                        )}
+                <DeckHierarchy
+                  onSelectDeck={handleSelectDeck}
+                  onStartStudy={handleStartStudy}
+                  showActions={true}
+                />
+              </div>
+
+              {/* Classic view content */}
+              <div className="flex-1 flex flex-col">
+              {/* Error notification */}
+              {error && (
+                <div className={clsx(
+                  'mx-6 mt-6 p-4 rounded-lg border-l-4 border-red-400',
+                  isDarkMode 
+                    ? 'bg-red-900 bg-opacity-20 text-red-300' 
+                    : 'bg-red-50 text-red-700'
+                )}>
+                  <p className="text-sm">{error}</p>
+                </div>
+              )}
+
+              {/* Success notification */}
+              {successMessage && (
+                <div className={clsx(
+                  'mx-6 mt-6 p-4 rounded-lg border-l-4 border-green-400',
+                  isDarkMode 
+                    ? 'bg-green-900 bg-opacity-20 text-green-300' 
+                    : 'bg-green-50 text-green-700'
+                )}>
+                  <p className="text-sm">{successMessage}</p>
+                </div>
+              )}
+
+              {/* Main content */}
+              <div className="flex-1 p-6">
+                {selectedDeck ? (
+                  // Deck details view
+                  <div className="max-w-4xl mx-auto">
+                    <div className={clsx(
+                      'rounded-xl p-6 mb-6',
+                      isDarkMode ? 'bg-kanagawa-ink4' : 'bg-white'
+                    )}>
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center">
+                          <div
+                            className="p-3 rounded-lg mr-4"
+                            style={{ backgroundColor: `${selectedDeck.color || '#6B7280'}20` }}
+                          >
+                            {selectedDeck.is_collection ? (
+                              <PlusIcon 
+                                className="h-6 w-6" 
+                                style={{ color: selectedDeck.color || '#6B7280' }}
+                              />
+                            ) : (
+                              <DocumentTextIcon 
+                                className="h-6 w-6" 
+                                style={{ color: selectedDeck.color || '#6B7280' }}
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <h2 className={clsx(
+                              'text-xl font-semibold',
+                              isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+                            )}>
+                              {selectedDeck.name}
+                            </h2>
+                            {selectedDeck.description && (
+                              <p className={clsx(
+                                'text-sm mt-1',
+                                isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-600'
+                              )}>
+                                {selectedDeck.description}
+                              </p>
+                            )}
+                            {selectedDeck.collection_path && (
+                              <p className={clsx(
+                                'text-xs mt-1',
+                                isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+                              )}>
+                                Collection: {selectedDeck.collection_path}
+                              </p>
+                            )}
+                            <div className={clsx(
+                              'flex items-center space-x-4 mt-2 text-sm',
+                              isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-500'
+                            )}>
+                              <span>{selectedDeck.card_count || 0} cards</span>
+                              {selectedDeck.file_path && (
+                                <span>• Linked to file</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleStartStudy(selectedDeck, false)}
+                          className={clsx(
+                            'flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-all duration-200',
+                            'hover:scale-105 active:scale-95',
+                            isDarkMode 
+                              ? 'bg-accent-blue hover:bg-primary-700 text-kanagawa-ink3' 
+                              : 'bg-primary-600 hover:bg-primary-700 text-white'
+                          )}
+                        >
+                          <PlayIcon className="h-5 w-5" />
+                          <span>{selectedDeck.file_path ? 'Study This Deck' : 'Study Collection'}</span>
+                        </button>
                       </div>
                     </div>
                   </div>
-
-                  <button
-                    onClick={() => handleStartStudy(selectedDeck, false)}
-                    className={clsx(
-                      'flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-all duration-200',
-                      'hover:scale-105 active:scale-95',
-                      isDarkMode 
-                        ? 'bg-accent-blue hover:bg-primary-700 text-kanagawa-ink3' 
-                        : 'bg-primary-600 hover:bg-primary-700 text-white'
-                    )}
-                  >
-                    <PlayIcon className="h-5 w-5" />
-                    <span>{selectedDeck.file_path ? 'Study This Deck' : 'Study Collection'}</span>
-                  </button>
-                </div>
-              </div>
-
-            </div>
-          ) : (
-            // Welcome view
-            <div className="max-w-2xl mx-auto text-center py-12">
-              <DocumentTextIcon className={clsx(
-                'mx-auto h-16 w-16 mb-6',
-                isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'
-              )} />
-              <h2 className={clsx(
-                'text-2xl font-semibold mb-4',
-                isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
-              )}>
-                Welcome to Flashcards
-              </h2>
-              <p className={clsx(
-                'mb-8',
-                isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-600'
-              )}>
-                Create flashcards directly in your markdown files using the Flash notation, 
-                or select a collection from the sidebar to start studying.
-              </p>
-              
-              <div className={clsx(
-                'text-left p-4 rounded-lg mb-8',
-                isDarkMode ? 'bg-kanagawa-ink4' : 'bg-gray-100'
-              )}>
-                <h4 className={clsx(
-                  'font-semibold mb-2',
-                  isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
-                )}>
-                  Flashcard Syntax:
-                </h4>
-                <pre className={clsx(
-                  'text-sm',
-                  isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
-                )}>
+                ) : (
+                  // Welcome view
+                  <div className="max-w-2xl mx-auto text-center py-12">
+                    <DocumentTextIcon className={clsx(
+                      'mx-auto h-16 w-16 mb-6',
+                      isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'
+                    )} />
+                    <h2 className={clsx(
+                      'text-2xl font-semibold mb-4',
+                      isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+                    )}>
+                      Welcome to Flashcards
+                    </h2>
+                    <p className={clsx(
+                      'mb-8',
+                      isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-600'
+                    )}>
+                      Create flashcards directly in your markdown files using the Flash notation, 
+                      or select a collection from the sidebar to start studying.
+                    </p>
+                    
+                    <div className={clsx(
+                      'text-left p-4 rounded-lg mb-8',
+                      isDarkMode ? 'bg-kanagawa-ink4' : 'bg-gray-100'
+                    )}>
+                      <h4 className={clsx(
+                        'font-semibold mb-2',
+                        isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+                      )}>
+                        Flashcard Syntax:
+                      </h4>
+                      <pre className={clsx(
+                        'text-sm',
+                        isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                      )}>
 {`## Flash: What is the capital of France?
 ### Answer: Paris
 
 ## Flash: Explain photosynthesis
 ### Answer: The process where plants convert sunlight into energy`}
-                </pre>
+                      </pre>
+                    </div>
+                  </div>
+                )}
               </div>
-
             </div>
-          )}
+            </>
+          ) : (
+            /* Grid view */
+            <div className="flex-1 flex flex-col">
+              {/* Error notification */}
+              {error && (
+                <div className={clsx(
+                  'mx-6 mt-6 p-4 rounded-lg border-l-4 border-red-400',
+                  isDarkMode 
+                    ? 'bg-red-900 bg-opacity-20 text-red-300' 
+                    : 'bg-red-50 text-red-700'
+                )}>
+                  <p className="text-sm">{error}</p>
+                </div>
+              )}
+
+              {/* Success notification */}
+              {successMessage && (
+                <div className={clsx(
+                  'mx-6 mt-6 p-4 rounded-lg border-l-4 border-green-400',
+                  isDarkMode 
+                    ? 'bg-green-900 bg-opacity-20 text-green-300' 
+                    : 'bg-green-50 text-green-700'
+                )}>
+                  <p className="text-sm">{successMessage}</p>
+                </div>
+              )}
+
+              {/* Collection Grid */}
+              <CollectionGrid onStartStudy={handleStartStudyFromGrid} />
+            </div>
+        )}
         </div>
       </div>
     </div>

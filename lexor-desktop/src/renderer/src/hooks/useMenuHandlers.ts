@@ -299,6 +299,12 @@ export function useMenuHandlers() {
       toggleScrollbar();
     };
 
+    const handleSwitchFlashcardView = (viewMode: string) => {
+      // Always dispatch the event - let the FlashcardView component decide if it should handle it
+      // This is more robust than checking currentView which might not be reliable with routing
+      window.dispatchEvent(new CustomEvent('switchFlashcardView', { detail: { viewMode } }));
+    };
+
     const handleRenameSelected = () => {
       if (!selectedItem) {
         console.warn('No item selected for rename');
@@ -386,6 +392,7 @@ export function useMenuHandlers() {
       window.electronAPI.menu.onFocusRightPane(handleFocusRightPane),
       window.electronAPI.menu.onSwapPanes(handleSwapPanes),
       window.electronAPI.menu.onToggleScrollbar(handleToggleScrollbar),
+      window.electronAPI.menu.onSwitchFlashcardView(handleSwitchFlashcardView),
     ];
 
     // Cleanup function

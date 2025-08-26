@@ -211,6 +211,11 @@ const electronAPI = {
       ipcRenderer.on('menu:toggle-scrollbar', callback);
       return () => ipcRenderer.removeListener('menu:toggle-scrollbar', callback);
     },
+    onSwitchFlashcardView: (callback: (viewMode: string) => void) => {
+      const handler = (_: any, viewMode: string) => callback(viewMode);
+      ipcRenderer.on('menu:switch-flashcard-view', handler);
+      return () => ipcRenderer.removeListener('menu:switch-flashcard-view', handler);
+    },
   },
 
   // Database operations (for local SQLite database)
