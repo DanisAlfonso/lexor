@@ -13,6 +13,7 @@ import { clsx } from 'clsx';
 import { StudyCard, Rating, StudySession } from '../../../../shared/types/flashcards';
 import { useFlashcardStore } from '../../stores/flashcardStore';
 import { useAppStore } from '../../stores/appStore';
+import { MediaRenderer } from './MediaRenderer';
 
 interface StudyInterfaceProps {
   onComplete?: () => void;
@@ -285,14 +286,13 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
                 )}>
                   QUESTION
                 </div>
-                <div 
+                <MediaRenderer
+                  content={card.front}
+                  isDarkMode={isDarkMode}
                   className={clsx(
                     'text-lg font-medium leading-relaxed',
                     isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
                   )}
-                  dangerouslySetInnerHTML={{ 
-                    __html: card.front.replace(/\n/g, '<br />') 
-                  }}
                 />
                 
               </div>
@@ -319,14 +319,13 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
                 )}>
                   ANSWER
                 </div>
-                <div 
+                <MediaRenderer
+                  content={card.back}
+                  isDarkMode={isDarkMode}
                   className={clsx(
                     'text-lg font-medium leading-relaxed',
                     isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
                   )}
-                  dangerouslySetInnerHTML={{ 
-                    __html: card.back.replace(/\n/g, '<br />') 
-                  }}
                 />
               </div>
             </div>
@@ -356,6 +355,14 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
   const [sessionStartTime] = useState<Date>(new Date());
   const [cardsReviewed, setCardsReviewed] = useState(0);
   const [showProgressUI, setShowProgressUI] = useState(true);
+  
+  // Set document context for media path resolution
+  useEffect(() => {
+    if (currentCard && currentCard.source_file) {
+      // Set global variable for relative path resolution in media
+      (window as any).__lexor_current_document__ = currentCard.source_file;
+    }
+  }, [currentCard]);
   
   // Determine theme
   const isDarkMode = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -398,6 +405,11 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
           setShowProgressUI(prev => !prev);
         }
         break;
+      case 'p':
+      case 'P':
+        e.preventDefault();
+        handlePlayAudio();
+        break;
     }
   }, [currentCard, currentSession, showAnswer]);
 
@@ -424,6 +436,51 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
   const handleExit = () => {
     endStudySession();
     onExit();
+  };
+
+  const handlePlayAudio = () => {
+    // Find all audio elements on the current flashcard
+    const audioElements = document.querySelectorAll('audio');
+    
+    if (audioElements.length === 0) {
+      // No audio found, provide user feedback (could add visual feedback later)
+      console.log('No audio found on current flashcard');
+      return;
+    }
+    
+    // First, check if any audio is currently playing and pause it
+    let playingAudio = null;
+    for (const audio of audioElements) {
+      if (!audio.paused) {
+        playingAudio = audio;
+        break;
+      }
+    }
+    
+    if (playingAudio) {
+      playingAudio.pause();
+      return;
+    }
+    
+    // Find visible audio elements (prioritize audio on the current side of the card)
+    const visibleAudioElements = Array.from(audioElements).filter(audio => {
+      const container = audio.closest('.absolute'); // Card side container
+      if (!container) return true; // If not in a card container, consider it visible
+      
+      const style = window.getComputedStyle(container);
+      return style.display !== 'none' && style.opacity !== '0';
+    });
+    
+    // Use visible audio elements if available, otherwise fall back to all audio elements
+    const targetElements = visibleAudioElements.length > 0 ? visibleAudioElements : audioElements;
+    
+    if (targetElements.length > 0) {
+      const targetAudio = targetElements[0];
+      targetAudio.play().catch(error => {
+        console.error('Failed to play audio:', error);
+        // Could add user notification here in the future
+      });
+    }
   };
 
   if (!currentSession || !currentCard) {

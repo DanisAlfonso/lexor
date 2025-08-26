@@ -826,6 +826,20 @@ export class FlashcardService {
     return this.mapToStudyCards(rows);
   }
 
+  private parseMediaPaths(mediaPathsData: string): string[] | undefined {
+    try {
+      // First try to parse as JSON
+      return JSON.parse(mediaPathsData);
+    } catch (error) {
+      // If JSON parsing fails, handle legacy comma-separated format
+      if (typeof mediaPathsData === 'string' && mediaPathsData.trim()) {
+        // Split by comma and clean up the paths
+        return mediaPathsData.split(',').map(path => path.trim()).filter(Boolean);
+      }
+      return undefined;
+    }
+  }
+
   private mapToStudyCards(rows: any[]): StudyCard[] {
     return rows.map(row => ({
       id: row.card_id || row.id,
@@ -833,7 +847,7 @@ export class FlashcardService {
       deck_name: row.deck_name,
       front: row.front,
       back: row.back,
-      media_paths: row.media_paths ? JSON.parse(row.media_paths) : undefined,
+      media_paths: row.media_paths ? this.parseMediaPaths(row.media_paths) : undefined,
       source_file: row.source_file,
       source_line: row.source_line,
       due: new Date(row.due_date),

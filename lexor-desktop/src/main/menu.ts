@@ -290,6 +290,12 @@ export function createMenu(): Menu {
           enabled: false
         },
         { 
+          label: 'Play/Pause Audio',
+          accelerator: 'P',
+          id: 'play-audio',
+          enabled: false
+        },
+        { 
           label: 'Exit Study',
           accelerator: 'Esc',
           id: 'exit-study',
@@ -465,6 +471,7 @@ export function updateMenuState(hasSelectedFile: boolean, currentView: string, i
       'rate-hard',
       'rate-good',
       'rate-easy',
+      'play-audio',
       'exit-study'
     ];
 
