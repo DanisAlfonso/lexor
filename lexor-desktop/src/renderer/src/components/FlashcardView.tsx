@@ -18,7 +18,9 @@ export function FlashcardView() {
     startStudySession, 
     importFromMarkdown,
     clearError,
+    clearCompletionMessage,
     error,
+    completionMessage,
     isLoading,
     resetFlashcardDatabase,
     discoverAndSyncLibrary,
@@ -90,10 +92,13 @@ export function FlashcardView() {
     return () => mediaQuery.removeEventListener('change', handleThemeChange);
   }, []);
 
-  // Switch to study mode when session starts
+  // Switch to study mode when session starts, back to browse when it ends
   useEffect(() => {
     if (currentSession) {
       setViewMode('study');
+    } else {
+      // When session ends, return to browse mode
+      setViewMode('browse');
     }
   }, [currentSession]);
 
@@ -104,6 +109,14 @@ export function FlashcardView() {
       return () => clearTimeout(timer);
     }
   }, [error, clearError]);
+
+  // Clear completion messages after some time
+  useEffect(() => {
+    if (completionMessage) {
+      const timer = setTimeout(() => clearCompletionMessage(), 8000); // Longer for positive messages
+      return () => clearTimeout(timer);
+    }
+  }, [completionMessage, clearCompletionMessage]);
 
   // Clear success messages after some time
   useEffect(() => {
@@ -211,13 +224,6 @@ export function FlashcardView() {
       const { service } = useFlashcardStore.getState();
       const debug = await service.debugFSRSState();
       
-      console.log('=== FSRS DEBUG INFO ===');
-      console.log('Summary:', debug.summary);
-      console.log('Card States:', debug.cardStates);
-      console.log('Recent Reviews:', debug.recentReviews);
-      console.log('Due Cards:', debug.dueCards);
-      console.log('NEXT DUE CARDS:', debug.nextDueCards);
-      console.log('======================');
       
       const summary = debug.summary;
       const nextDue = debug.nextDueCards[0];
@@ -236,9 +242,7 @@ export function FlashcardView() {
   useEffect(() => {
     const performAutoSync = async () => {
       try {
-        console.log('Performing automatic library discovery...');
         await discoverAndSyncLibrary();
-        console.log('Automatic discovery completed');
       } catch (error) {
         console.error('Auto-discovery failed:', error);
       }
@@ -262,7 +266,6 @@ export function FlashcardView() {
           // Start watching the directory
           await window.electronAPI.folder.watchDirectory(fileDir);
           setIsWatchingFile(true);
-          console.log('Started watching directory:', fileDir);
 
           // Set up the file change listener
           cleanup = window.electronAPI.folder.onFileChanged(async (changedFilePath) => {
@@ -352,6 +355,18 @@ export function FlashcardView() {
                     : 'bg-red-50 text-red-700'
                 )}>
                   <p className="text-sm">{error}</p>
+                </div>
+              )}
+
+              {/* Completion message notification - positive styling */}
+              {completionMessage && (
+                <div className={clsx(
+                  'mx-6 mt-6 p-4 rounded-lg border-l-4 border-green-400',
+                  isDarkMode 
+                    ? 'bg-green-900 bg-opacity-20 text-green-300' 
+                    : 'bg-green-50 text-green-700'
+                )}>
+                  <p className="text-sm">{completionMessage}</p>
                 </div>
               )}
 
@@ -535,6 +550,18 @@ export function FlashcardView() {
                     : 'bg-red-50 text-red-700'
                 )}>
                   <p className="text-sm">{error}</p>
+                </div>
+              )}
+
+              {/* Completion message notification - positive styling */}
+              {completionMessage && (
+                <div className={clsx(
+                  'mx-6 mt-6 p-4 rounded-lg border-l-4 border-green-400',
+                  isDarkMode 
+                    ? 'bg-green-900 bg-opacity-20 text-green-300' 
+                    : 'bg-green-50 text-green-700'
+                )}>
+                  <p className="text-sm">{completionMessage}</p>
                 </div>
               )}
 

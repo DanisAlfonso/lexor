@@ -17,15 +17,46 @@ export class FlashcardService {
   private fsrs: FSRS;
 
   constructor() {
-    // Initialize FSRS with default parameters (can be customized)
-    this.fsrs = new FSRS({
-      // FSRS default parameters - can be adjusted based on user preferences
+    // Initialize FSRS with user-configurable parameters
+    this.fsrs = this.createFSRSInstance();
+  }
+
+  private createFSRSInstance() {
+    // Try to get user settings from localStorage (since we're in the service layer)
+    let userSettings;
+    try {
+      const stored = localStorage.getItem('lexor-study-settings');
+      if (stored) {
+        const parsedData = JSON.parse(stored);
+        userSettings = parsedData.state || parsedData;
+      }
+    } catch (error) {
+      console.warn('Failed to load user study settings, using defaults');
+    }
+
+    return new FSRS({
+      // FSRS default parameters - optimized weights
       w: [0.4072, 1.1829, 3.1262, 15.4722, 7.2102, 0.5316, 1.0651, 0.0234, 1.616, 0.1544, 1.0824, 1.9813, 0.0953, 0.2975, 2.2042, 0.2407, 2.9466, 0.5034, 0.6567],
-      request_retention: 0.9, // 90% retention rate
-      maximum_interval: 36500, // ~100 years
+      
+      // User-configurable settings
+      request_retention: userSettings?.desiredRetention || 0.9,
+      maximum_interval: userSettings?.maximumInterval || 36500,
+      
+      // Convert learning steps from numbers to string format expected by FSRS
+      learning_steps: (userSettings?.learningSteps || [1, 10]).map(step => `${step}m`),
+      relearning_steps: (userSettings?.relearningSteps || [10]).map(step => `${step}m`),
+      
+      // Fixed advanced settings
       easy_bonus: 1.3,
       hard_factor: 1.2,
+      graduating_interval_good: 1, // 1 day after passing learning
+      graduating_interval_easy: 4, // 4 days if marked easy in learning
     });
+  }
+
+  // Method to update FSRS when user changes settings
+  updateFSRSSettings() {
+    this.fsrs = this.createFSRSInstance();
   }
 
   // Database interaction helpers
@@ -868,10 +899,43 @@ export class FlashcardService {
     }));
   }
 
+  // Get current card state (for re-queuing failed cards)
+  async getCardState(cardId: number): Promise<{
+    due: Date;
+    stability: number;
+    difficulty: number;
+    state: number;
+    lapses: number;
+    reps: number;
+  } | null> {
+    try {
+      const cardState = await this.query(
+        'SELECT * FROM card_states WHERE card_id = ?',
+        [cardId]
+      );
+
+      if (cardState.length === 0) {
+        return null;
+      }
+
+      const state = cardState[0];
+      return {
+        due: new Date(state.due_date),
+        stability: state.stability,
+        difficulty: state.difficulty,
+        state: state.state,
+        lapses: state.lapses,
+        reps: state.reps
+      };
+    } catch (error) {
+      console.error('Failed to get card state:', error);
+      return null;
+    }
+  }
+
   // Review a card using FSRS
   async reviewCard(cardId: number, rating: Rating, reviewDate?: Date): Promise<boolean> {
     try {
-      console.log('🔍 ReviewCard called:', { cardId, rating, reviewDate });
       
       // Get current card state
       const cardState = await this.query(
@@ -879,14 +943,12 @@ export class FlashcardService {
         [cardId]
       );
 
-      console.log('🔍 Card state found:', cardState);
 
       if (cardState.length === 0) {
         throw new Error('Card state not found');
       }
 
       const current = cardState[0];
-      console.log('🔍 Current card state:', current);
       
       // Create FSRS card from current state
       const fsrsCard: Card = {
@@ -904,19 +966,14 @@ export class FlashcardService {
 
       // Convert our rating to FSRS rating
       const fsrsRating = this.convertToFSRSRating(rating);
-      console.log('🔍 FSRS Rating conversion:', { originalRating: rating, fsrsRating });
       
       // Calculate new scheduling using FSRS
       const now = reviewDate || new Date();
-      console.log('🔍 Calling FSRS repeat with:', { fsrsCard, now });
       
       const scheduling_cards = this.fsrs.repeat(fsrsCard, now);
-      console.log('🔍 FSRS repeat returned:', scheduling_cards);
-      console.log('🔍 Available scheduling keys:', Object.keys(scheduling_cards));
       
       // Get the card for the given rating (FSRS uses string keys)
       const scheduleResult = scheduling_cards[fsrsRating.toString()];
-      console.log('🔍 Selected schedule result for rating:', { fsrsRating, stringKey: fsrsRating.toString(), scheduleResult });
       
       if (!scheduleResult || !scheduleResult.card) {
         throw new Error(`FSRS scheduling failed: no card returned for rating ${fsrsRating}`);
@@ -926,13 +983,6 @@ export class FlashcardService {
       const newCard = scheduleResult.card;
       const log = scheduleResult.log;
 
-      console.log('🔍 FSRS calculation complete. New card full object:', newCard);
-      console.log('🔍 New card properties:', Object.keys(newCard));
-      console.log('🔍 New card due property:', { 
-        due: newCard.due, 
-        dueType: typeof newCard.due,
-        dueConstructor: newCard.due?.constructor?.name 
-      });
 
       // Update card state
       await this.execute(`
@@ -955,7 +1005,6 @@ export class FlashcardService {
       ]);
 
       // Record the review
-      console.log('🔍 Recording review to database...');
       await this.execute(`
         INSERT INTO reviews (card_id, rating, scheduled_days, actual_days, stability, difficulty, elapsed_days, lapses, reps, state)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -972,7 +1021,6 @@ export class FlashcardService {
         newCard.state
       ]);
 
-      console.log('✅ Review recorded successfully!');
       return true;
     } catch (error) {
       console.error('❌ Error reviewing card:', error);
@@ -1279,11 +1327,8 @@ export class FlashcardService {
     errors: string[];
   }> {
     try {
-      console.log('Starting library discovery for:', libraryPath);
-      
       // Get all markdown files in the library
       const markdownFiles = await this.scanForMarkdownFiles(libraryPath);
-      console.log(`Found ${markdownFiles.length} markdown files`);
       
       let filesProcessed = 0;
       let decksCreated = 0;
@@ -1298,8 +1343,6 @@ export class FlashcardService {
           
           // Check if file contains flashcards
           if (this.containsFlashcards(content)) {
-            console.log(`Processing flashcard file: ${filePath}`);
-            
             const result = await this.syncFromMarkdown(filePath, content);
             filesProcessed++;
             
@@ -1322,14 +1365,6 @@ export class FlashcardService {
       
       // Check for orphaned decks (decks with missing source files)
       const orphanedDecks = await this.findOrphanedDecks(libraryPath);
-      
-      console.log('Discovery complete:', {
-        filesProcessed,
-        decksCreated,
-        totalCardsImported,
-        orphaned: orphanedDecks.length,
-        errors: errors.length
-      });
       
       return {
         success: true,
@@ -1443,6 +1478,152 @@ export class FlashcardService {
         success: false, 
         removed: 0, 
         errors: [error instanceof Error ? error.message : 'Failed to remove orphaned decks'] 
+      };
+    }
+  }
+
+  // Check if a file or folder path contains flashcards
+  async checkFlashcardsForPath(filePath: string): Promise<{
+    hasFlashcards: boolean;
+    decks: Array<{id: number, name: string, cardCount: number}>;
+    affectedFiles: string[];
+  }> {
+    try {
+      let affectedDecks: Array<{id: number, name: string, cardCount: number}> = [];
+      let affectedFiles: string[] = [];
+
+      // Check if it's a single file
+      if (filePath.endsWith('.md') || filePath.endsWith('.markdown')) {
+        const decks = await this.query(`
+          SELECT d.id, d.name, COUNT(f.id) as cardCount
+          FROM decks d
+          JOIN flashcards f ON d.id = f.deck_id
+          WHERE d.file_path = ?
+          GROUP BY d.id, d.name
+        `, [filePath]);
+        
+        if (decks.length > 0) {
+          affectedDecks = decks;
+          affectedFiles = [filePath];
+        }
+      } else {
+        // Check if it's a folder containing flashcard files
+        const decks = await this.query(`
+          SELECT d.id, d.name, d.file_path, COUNT(f.id) as cardCount
+          FROM decks d
+          JOIN flashcards f ON d.id = f.deck_id
+          WHERE d.file_path LIKE ?
+          GROUP BY d.id, d.name, d.file_path
+        `, [filePath + '%']);
+        
+        if (decks.length > 0) {
+          affectedDecks = decks.map(d => ({id: d.id, name: d.name, cardCount: d.cardCount}));
+          affectedFiles = decks.map(d => d.file_path);
+        }
+      }
+
+      return {
+        hasFlashcards: affectedDecks.length > 0,
+        decks: affectedDecks,
+        affectedFiles
+      };
+    } catch (error) {
+      console.error('Error checking flashcards for path:', error);
+      return {
+        hasFlashcards: false,
+        decks: [],
+        affectedFiles: []
+      };
+    }
+  }
+
+  // Remove flashcards associated with deleted files
+  async removeFlashcardsForPath(filePath: string): Promise<{success: boolean, removed: number, message: string}> {
+    try {
+      let removedDecks = 0;
+      let removedCards = 0;
+      let removedCollections = 0;
+
+      if (filePath.endsWith('.md') || filePath.endsWith('.markdown')) {
+        // Single file - remove deck and its cards
+        const decks = await this.query('SELECT id FROM decks WHERE file_path = ?', [filePath]);
+        for (const deck of decks) {
+          const cards = await this.query('SELECT COUNT(*) as count FROM flashcards WHERE deck_id = ?', [deck.id]);
+          removedCards += cards[0]?.count || 0;
+          await this.execute('DELETE FROM decks WHERE id = ?', [deck.id]);
+          removedDecks++;
+        }
+      } else {
+        // Folder - remove all decks with file paths under this folder
+        const decks = await this.query(
+          'SELECT id, (SELECT COUNT(*) FROM flashcards WHERE deck_id = d.id) as cardCount FROM decks d WHERE file_path LIKE ?',
+          [filePath + '%']
+        );
+        
+        for (const deck of decks) {
+          removedCards += deck.cardCount || 0;
+          await this.execute('DELETE FROM decks WHERE id = ?', [deck.id]);
+          removedDecks++;
+        }
+
+        // Also remove any empty collections that correspond to this folder path
+        // Find collections that match this folder structure
+        const folderName = filePath.split('/').pop();
+        if (folderName) {
+          const collections = await this.query(`
+            SELECT id, name, collection_path 
+            FROM decks 
+            WHERE file_path IS NULL 
+              AND (name = ? OR collection_path LIKE ?)
+          `, [folderName, `%${folderName}%`]);
+          
+          for (const collection of collections) {
+            // Check if collection has any remaining child decks
+            const childCount = await this.query(
+              'SELECT COUNT(*) as count FROM decks WHERE parent_id = ?',
+              [collection.id]
+            );
+            
+            if (childCount[0]?.count === 0) {
+              await this.execute('DELETE FROM decks WHERE id = ?', [collection.id]);
+              removedCollections++;
+            }
+          }
+        }
+      }
+
+      // Clean up any orphaned parent collections that no longer have children
+      const orphanedCollections = await this.query(`
+        SELECT d.id, d.name
+        FROM decks d
+        WHERE d.file_path IS NULL
+          AND d.id NOT IN (
+            SELECT DISTINCT parent_id 
+            FROM decks 
+            WHERE parent_id IS NOT NULL
+          )
+          AND d.id NOT IN (
+            SELECT DISTINCT deck_id 
+            FROM flashcards
+          )
+      `);
+
+      for (const orphan of orphanedCollections) {
+        await this.execute('DELETE FROM decks WHERE id = ?', [orphan.id]);
+        removedCollections++;
+      }
+
+      const totalRemoved = removedDecks + removedCollections;
+      return {
+        success: true,
+        removed: removedCards,
+        message: `Removed ${removedDecks} deck(s), ${removedCollections} collection(s), and ${removedCards} flashcard(s)`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        removed: 0,
+        message: error instanceof Error ? error.message : 'Failed to remove flashcards'
       };
     }
   }

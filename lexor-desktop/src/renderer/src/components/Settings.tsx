@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../stores/appStore';
+import { useStudySettingsStore } from '../stores/studySettingsStore';
 import { clsx } from 'clsx';
-import { BookOpenIcon, FolderIcon } from '@heroicons/react/24/outline';
+import { BookOpenIcon, FolderIcon, AcademicCapIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 export function Settings() {
   const {
@@ -18,6 +19,18 @@ export function Settings() {
     libraryFolder,
     setLibraryFolder,
   } = useAppStore();
+
+  const {
+    newCardsPerDay,
+    maxReviewsPerDay,
+    learnAheadTimeMinutes,
+    desiredRetention,
+    learningSteps,
+    relearningSteps,
+    showProgress,
+    updateSettings,
+    resetToDefaults
+  } = useStudySettingsStore();
 
   // State for system theme detection
   const [systemTheme, setSystemTheme] = useState(
@@ -218,6 +231,375 @@ export function Settings() {
           </div>
         </div>
 
+        {/* Study Settings */}
+        <div className={clsx(
+          'p-6 mb-6 rounded-xl shadow-sm border',
+          isDarkMode 
+            ? 'bg-kanagawa-ink4 border-kanagawa-ink5' 
+            : 'bg-white border-gray-200'
+        )}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <AcademicCapIcon className={clsx(
+                'h-5 w-5 mr-2',
+                isDarkMode ? 'text-blue-400' : 'text-blue-600'
+              )} />
+              <h2 className={clsx(
+                'text-xl font-semibold',
+                isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+              )}>
+                Study Settings
+              </h2>
+            </div>
+            <button
+              onClick={resetToDefaults}
+              className={clsx(
+                'text-xs px-3 py-1 rounded-md font-medium transition-colors',
+                isDarkMode
+                  ? 'bg-kanagawa-ink5 hover:bg-kanagawa-gray text-kanagawa-oldwhite'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              )}
+            >
+              Reset to Defaults
+            </button>
+          </div>
+          
+          <div className="space-y-6">
+            {/* Daily Limits */}
+            <div>
+              <h3 className={clsx(
+                'text-sm font-medium mb-3 flex items-center',
+                isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+              )}>
+                <ClockIcon className="h-4 w-4 mr-2" />
+                Daily Study Limits
+              </h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* New Cards Per Day */}
+                <div>
+                  <label className={clsx(
+                    'block text-sm font-medium mb-2',
+                    isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                  )}>
+                    New Cards Per Day: {newCardsPerDay}
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="100"
+                    value={newCardsPerDay}
+                    onChange={(e) => updateSettings({ newCardsPerDay: Number(e.target.value) })}
+                    className={clsx(
+                      'w-full h-2 rounded-lg appearance-none cursor-pointer',
+                      isDarkMode 
+                        ? 'bg-kanagawa-ink5 accent-accent-blue' 
+                        : 'bg-gray-200 accent-primary-600'
+                    )}
+                  />
+                  <div className="flex justify-between text-xs mt-1">
+                    <span className={isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'}>1</span>
+                    <span className={isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'}>100</span>
+                  </div>
+                  <p className={clsx(
+                    'text-xs mt-1',
+                    isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+                  )}>
+                    How many new cards you want to learn each day
+                  </p>
+                </div>
+
+                {/* Max Reviews Per Day */}
+                <div>
+                  <label className={clsx(
+                    'block text-sm font-medium mb-2',
+                    isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                  )}>
+                    Max Reviews Per Day: {maxReviewsPerDay === 999 ? 'Unlimited' : maxReviewsPerDay}
+                  </label>
+                  <input
+                    type="range"
+                    min="10"
+                    max="999"
+                    value={maxReviewsPerDay}
+                    onChange={(e) => updateSettings({ maxReviewsPerDay: Number(e.target.value) })}
+                    className={clsx(
+                      'w-full h-2 rounded-lg appearance-none cursor-pointer',
+                      isDarkMode 
+                        ? 'bg-kanagawa-ink5 accent-accent-blue' 
+                        : 'bg-gray-200 accent-primary-600'
+                    )}
+                  />
+                  <div className="flex justify-between text-xs mt-1">
+                    <span className={isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'}>10</span>
+                    <span className={isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'}>Unlimited</span>
+                  </div>
+                  <p className={clsx(
+                    'text-xs mt-1',
+                    isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+                  )}>
+                    Maximum number of review cards per day
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Advanced Settings */}
+            <div>
+              <h3 className={clsx(
+                'text-sm font-medium mb-3',
+                isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+              )}>
+                Advanced Settings
+              </h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Learn Ahead Time */}
+                <div>
+                  <label className={clsx(
+                    'block text-sm font-medium mb-2',
+                    isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                  )}>
+                    Learn Ahead Time: {learnAheadTimeMinutes} min
+                  </label>
+                  <input
+                    type="range"
+                    min="5"
+                    max="60"
+                    step="5"
+                    value={learnAheadTimeMinutes}
+                    onChange={(e) => updateSettings({ learnAheadTimeMinutes: Number(e.target.value) })}
+                    className={clsx(
+                      'w-full h-2 rounded-lg appearance-none cursor-pointer',
+                      isDarkMode 
+                        ? 'bg-kanagawa-ink5 accent-accent-blue' 
+                        : 'bg-gray-200 accent-primary-600'
+                    )}
+                  />
+                  <p className={clsx(
+                    'text-xs mt-1',
+                    isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+                  )}>
+                    How far ahead to show learning cards
+                  </p>
+                </div>
+
+                {/* Desired Retention */}
+                <div>
+                  <label className={clsx(
+                    'block text-sm font-medium mb-2',
+                    isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                  )}>
+                    Target Retention: {Math.round(desiredRetention * 100)}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0.75"
+                    max="0.98"
+                    step="0.01"
+                    value={desiredRetention}
+                    onChange={(e) => updateSettings({ desiredRetention: Number(e.target.value) })}
+                    className={clsx(
+                      'w-full h-2 rounded-lg appearance-none cursor-pointer',
+                      isDarkMode 
+                        ? 'bg-kanagawa-ink5 accent-accent-blue' 
+                        : 'bg-gray-200 accent-primary-600'
+                    )}
+                  />
+                  <p className={clsx(
+                    'text-xs mt-1',
+                    isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+                  )}>
+                    Higher retention = more frequent reviews
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Learning Steps */}
+            <div>
+              <h3 className={clsx(
+                'text-sm font-medium mb-3',
+                isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+              )}>
+                Learning Steps (Failed Cards)
+              </h3>
+              
+              <div className="space-y-4">
+                {/* First Learning Step */}
+                <div>
+                  <label className={clsx(
+                    'block text-sm font-medium mb-2',
+                    isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                  )}>
+                    First Step (Again): {learningSteps[0]} minutes
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="60"
+                    value={learningSteps[0] || 10}
+                    onChange={(e) => {
+                      const newSteps = [...learningSteps];
+                      newSteps[0] = Number(e.target.value);
+                      updateSettings({ learningSteps: newSteps });
+                    }}
+                    className={clsx(
+                      'w-full h-2 rounded-lg appearance-none cursor-pointer',
+                      isDarkMode 
+                        ? 'bg-kanagawa-ink5 accent-accent-blue' 
+                        : 'bg-gray-200 accent-primary-600'
+                    )}
+                  />
+                  <div className="flex justify-between text-xs mt-1">
+                    <span className={isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'}>1min</span>
+                    <span className={isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'}>60min</span>
+                  </div>
+                  <p className={clsx(
+                    'text-xs mt-1',
+                    isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+                  )}>
+                    How long to wait before showing failed cards again
+                  </p>
+                </div>
+
+                {/* Second Learning Step */}
+                <div>
+                  <label className={clsx(
+                    'block text-sm font-medium mb-2',
+                    isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                  )}>
+                    Second Step (Good): {learningSteps[1] || 0} minutes
+                  </label>
+                  <input
+                    type="range"
+                    min="5"
+                    max="180"
+                    step="5"
+                    value={learningSteps[1] || 30}
+                    onChange={(e) => {
+                      const newSteps = [...learningSteps];
+                      newSteps[1] = Number(e.target.value);
+                      updateSettings({ learningSteps: newSteps });
+                    }}
+                    className={clsx(
+                      'w-full h-2 rounded-lg appearance-none cursor-pointer',
+                      isDarkMode 
+                        ? 'bg-kanagawa-ink5 accent-accent-blue' 
+                        : 'bg-gray-200 accent-primary-600'
+                    )}
+                  />
+                  <div className="flex justify-between text-xs mt-1">
+                    <span className={isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'}>5min</span>
+                    <span className={isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'}>3hrs</span>
+                  </div>
+                  <p className={clsx(
+                    'text-xs mt-1',
+                    isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+                  )}>
+                    Final step before card becomes a review card
+                  </p>
+                </div>
+
+                {/* Relearning Step */}
+                <div>
+                  <label className={clsx(
+                    'block text-sm font-medium mb-2',
+                    isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                  )}>
+                    Relearning Step: {relearningSteps[0] || 15} minutes
+                  </label>
+                  <input
+                    type="range"
+                    min="5"
+                    max="120"
+                    step="5"
+                    value={relearningSteps[0] || 15}
+                    onChange={(e) => {
+                      const newSteps = [Number(e.target.value)];
+                      updateSettings({ relearningSteps: newSteps });
+                    }}
+                    className={clsx(
+                      'w-full h-2 rounded-lg appearance-none cursor-pointer',
+                      isDarkMode 
+                        ? 'bg-kanagawa-ink5 accent-accent-blue' 
+                        : 'bg-gray-200 accent-primary-600'
+                    )}
+                  />
+                  <div className="flex justify-between text-xs mt-1">
+                    <span className={isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'}>5min</span>
+                    <span className={isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'}>2hrs</span>
+                  </div>
+                  <p className={clsx(
+                    'text-xs mt-1',
+                    isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+                  )}>
+                    For cards you forgot after they became review cards
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Display Options */}
+            <div>
+              <h3 className={clsx(
+                'text-sm font-medium mb-3',
+                isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+              )}>
+                Display Options
+              </h3>
+              
+              <div className="space-y-3">
+                {/* Show Progress */}
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={showProgress}
+                    onChange={(e) => updateSettings({ showProgress: e.target.checked })}
+                    className={clsx(
+                      'h-4 w-4 rounded border focus:ring-2 focus:ring-offset-2',
+                      isDarkMode
+                        ? 'border-kanagawa-ink5 bg-kanagawa-ink5 text-accent-blue focus:ring-accent-blue focus:ring-offset-kanagawa-ink4'
+                        : 'border-gray-300 bg-white text-primary-600 focus:ring-primary-600 focus:ring-offset-white'
+                    )}
+                  />
+                  <span className={clsx(
+                    'ml-3 text-sm',
+                    isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                  )}>
+                    Show progress indicator during study sessions
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Info Panel */}
+            <div className={clsx(
+              'p-4 rounded-lg',
+              isDarkMode 
+                ? 'bg-blue-900/20 border border-blue-800' 
+                : 'bg-blue-50 border border-blue-200'
+            )}>
+              <h4 className={clsx(
+                'text-sm font-medium mb-2',
+                isDarkMode ? 'text-blue-400' : 'text-blue-700'
+              )}>
+                About These Settings
+              </h4>
+              <ul className={clsx(
+                'text-xs space-y-1',
+                isDarkMode ? 'text-blue-300' : 'text-blue-600'
+              )}>
+                <li>• <strong>New cards:</strong> Brand new cards you haven't studied yet</li>
+                <li>• <strong>Reviews:</strong> Cards you've seen before that are due for review</li>
+                <li>• <strong>Learning steps:</strong> When you press "Again", card reappears after first step. Press "Good" to move to second step</li>
+                <li>• <strong>Relearning:</strong> For review cards you forgot - they go through relearning steps</li>
+                <li>• <strong>Learn ahead:</strong> Failed cards will reappear within this time window</li>
+                <li>• <strong>Retention:</strong> Uses FSRS algorithm to optimize your study schedule</li>
+              </ul>
+            </div>
+          </div>
+        </div>
 
         {/* Lexor Library */}
         <div className={clsx(

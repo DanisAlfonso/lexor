@@ -11,6 +11,7 @@ import {
 } from '../../../shared/types/flashcards';
 import { FlashcardService } from '../services/flashcardService';
 import { useAppStore } from './appStore';
+import { useStudySettingsStore } from './studySettingsStore';
 
 export interface FlashcardState {
   // Service instance
@@ -30,6 +31,7 @@ export interface FlashcardState {
   // UI state
   isLoading: boolean;
   error: string | null;
+  completionMessage: string | null;
   viewState: FlashcardViewState;
   
   // Actions - Deck management
@@ -65,6 +67,8 @@ export interface FlashcardState {
   
   // Utility actions
   clearError: () => void;
+  clearCompletionMessage: () => void;
+  setCompletionMessage: (message: string) => void;
   setLoading: (loading: boolean) => void;
   
   // Maintenance actions
@@ -74,6 +78,13 @@ export interface FlashcardState {
   // Auto-discovery actions
   discoverAndSyncLibrary: (libraryPath?: string) => Promise<{ success: boolean, filesProcessed: number, decksCreated: number, cardsImported: number, orphanedDecks: Array<{id: number, name: string, filePath: string}>, errors: string[] }>;
   removeOrphanedDecks: (orphanedIds: number[]) => Promise<{ success: boolean, removed: number, errors: string[] }>;
+  
+  // Internal method for session management
+  checkForMoreCards: () => Promise<void>;
+  
+  // Anki-style queue management
+  reorderSessionQueue: () => void;
+  insertCardAtCorrectPosition: (card: StudyCard) => void;
 }
 
 export const useFlashcardStore = create<FlashcardState>()(
@@ -89,6 +100,7 @@ export const useFlashcardStore = create<FlashcardState>()(
     studyStats: null,
     isLoading: false,
     error: null,
+    completionMessage: null,
     viewState: {
       isStudying: false,
       showAnswer: false,
@@ -366,43 +378,71 @@ export const useFlashcardStore = create<FlashcardState>()(
       try {
         let cards: StudyCard[] = [];
         
-        // Set appropriate limits based on whether we're studying a collection
-        const newCardLimit = includeChildren ? 50 : 20; // Higher limit for collections
+        // Get user-defined limits from settings
+        const studySettings = useStudySettingsStore.getState();
+        const newCardLimit = studySettings.getEffectiveLimit('new', includeChildren);
+        const dueCardLimit = studySettings.getEffectiveLimit('review', includeChildren);
+        
         
         switch (studyMode) {
           case 'new':
             cards = await service.getNewCards(deckId, newCardLimit, includeChildren);
             break;
           case 'due':
-            cards = await service.getDueCards(deckId, undefined, includeChildren);
+            cards = await service.getDueCards(deckId, dueCardLimit, includeChildren);
             break;
           case 'all':
-            const dueCards = await service.getDueCards(deckId, undefined, includeChildren);
+            const dueCards = await service.getDueCards(deckId, dueCardLimit, includeChildren);
             const newCards = await service.getNewCards(deckId, newCardLimit, includeChildren);
             cards = [...dueCards, ...newCards];
             break;
         }
         
+        
         if (cards.length === 0) {
+          // Use completion message instead of error - this is a positive outcome!
+          const completionMessage = studyMode === 'new' 
+            ? '🎉 All caught up! No new cards to learn today. Great job staying on top of your studies!' 
+            : '✨ Excellent work! You\'ve completed all your reviews for now. Check back later for more cards to study.';
+            
           set({ 
-            error: studyMode === 'new' ? 'No new cards to study' : 'No cards due for review',
-            isLoading: false 
+            completionMessage,
+            isLoading: false,
+            error: null // Make sure error is cleared
           });
           return;
         }
         
+        // Sort cards by due time initially (Anki-style) - due cards first, then by time
+        const now = new Date();
+        const sortedCards = cards.sort((a, b) => {
+          const aTime = new Date(a.due).getTime();
+          const bTime = new Date(b.due).getTime();
+          
+          // Due cards first (past or very recent), then future cards
+          const aDue = aTime <= now.getTime();
+          const bDue = bTime <= now.getTime();
+          
+          if (aDue && !bDue) return -1; // a is due, b is not
+          if (!aDue && bDue) return 1;  // b is due, a is not
+          
+          // Both due or both future - sort by time
+          return aTime - bTime;
+        });
+        
+
         const session: StudySession = {
           deck_id: deckId,
-          cards,
+          cards: sortedCards, // Use sorted cards
           current_index: 0,
           session_start: new Date(),
           cards_reviewed: 0,
-          total_cards: cards.length
+          total_cards: sortedCards.length
         };
         
         set({
           currentSession: session,
-          currentCard: cards[0],
+          currentCard: sortedCards[0],
           showAnswer: false,
           isLoading: false,
           viewState: { ...get().viewState, isStudying: true, studyMode }
@@ -444,6 +484,51 @@ export const useFlashcardStore = create<FlashcardState>()(
         
         set({ currentSession: updatedSession });
         
+        // Handle failed cards (Again rating) - re-queue them if due soon
+        if (rating === Rating.Again) {
+          // Get the updated card state to check its new due date
+          const updatedCardState = await service.getCardState(currentCard.id);
+          
+          if (updatedCardState) {
+            const now = new Date();
+            const timeDifference = updatedCardState.due.getTime() - now.getTime();
+            const minutesUntilDue = timeDifference / (1000 * 60);
+            
+            
+            // Use user's learn-ahead setting but also enforce minimum spacing
+            const studySettings = useStudySettingsStore.getState();
+            const learnAheadMinutes = studySettings.learnAheadTimeMinutes;
+            
+            // Only re-queue if:
+            // 1. Card is within learn-ahead window AND
+            // 2. Card is due at least 30 seconds from now (prevent immediate reappearance)
+            if (minutesUntilDue <= learnAheadMinutes && minutesUntilDue >= 0.5) {
+              const reQueuedCard: StudyCard = {
+                ...currentCard,
+                due: updatedCardState.due,
+                stability: updatedCardState.stability,
+                difficulty: updatedCardState.difficulty,
+                state: updatedCardState.state,
+                lapses: updatedCardState.lapses,
+                reps: updatedCardState.reps
+              };
+              
+              // Set the updated session first (for stats)
+              set({ currentSession: updatedSession });
+              
+              // Use Anki-style insertion at correct time-based position
+              get().insertCardAtCorrectPosition(reQueuedCard);
+              
+            }
+          }
+        }
+        
+        // Periodically reorder the queue to respect time-based due dates (Anki behavior)
+        // This ensures cards due sooner appear first, even if other cards were added later
+        if (get().currentSession && get().currentSession!.cards_reviewed % 5 === 0) {
+          get().reorderSessionQueue();
+        }
+        
         // Move to next card
         get().nextCard();
         
@@ -472,8 +557,8 @@ export const useFlashcardStore = create<FlashcardState>()(
           showAnswer: false
         });
       } else {
-        // End of session
-        get().endStudySession();
+        // No more cards in current session - check if we should fetch more or end
+        get().checkForMoreCards();
       }
     },
 
@@ -533,6 +618,8 @@ export const useFlashcardStore = create<FlashcardState>()(
 
     // Utility actions
     clearError: () => set({ error: null }),
+    clearCompletionMessage: () => set({ completionMessage: null }),
+    setCompletionMessage: (message: string) => set({ completionMessage: message, error: null }), // Clear error when showing completion
     setLoading: (loading: boolean) => set({ isLoading: loading }),
     
     // Maintenance actions
@@ -632,6 +719,211 @@ export const useFlashcardStore = create<FlashcardState>()(
           errors: [errorMessage]
         };
       }
+    },
+
+    // Check if there are more cards to study or end the session
+    checkForMoreCards: async () => {
+      const { service, currentSession } = get();
+      if (!currentSession) return;
+      
+      
+      try {
+        set({ isLoading: true });
+        
+        // Check if there are more cards due now from the same deck/collection
+        let newDueCards: StudyCard[] = [];
+        const includeChildren = currentSession.deck_id ? 
+          // If we have a deck_id, check if it's a collection (no file_path)
+          (await service.getDeck(currentSession.deck_id))?.file_path === null || false
+          : false;
+        
+        
+        // Get currently due cards (not including new cards, just reviewing)
+        // Use a smaller batch size for mid-session card loading
+        const batchSize = 10; // Smaller batches during session continuation
+        newDueCards = await service.getDueCards(currentSession.deck_id, batchSize, includeChildren);
+        
+        // Filter out cards that are already in the current session to avoid duplicates
+        const existingCardIds = new Set(currentSession.cards.map(card => card.id));
+        const freshDueCards = newDueCards.filter(card => !existingCardIds.has(card.id));
+        
+        
+        if (freshDueCards.length > 0) {
+          // Add new due cards to the session
+          const updatedSession = {
+            ...currentSession,
+            cards: [...currentSession.cards, ...freshDueCards],
+            total_cards: currentSession.total_cards + freshDueCards.length
+          };
+          
+          
+          set({ 
+            currentSession: updatedSession,
+            isLoading: false 
+          });
+          
+          // Continue with the next card
+          get().nextCard();
+        } else {
+          // No more cards available - end the session with a positive message
+          console.log('🏁 No more cards available. Ending study session.');
+          const cardsReviewed = currentSession.cards_reviewed;
+          const completionMessage = cardsReviewed > 0 
+            ? `🎊 Study session complete! You reviewed ${cardsReviewed} card${cardsReviewed === 1 ? '' : 's'}. Well done!`
+            : '✨ All caught up! No cards need reviewing right now.';
+            
+          set({ 
+            completionMessage,
+            isLoading: false,
+            error: null
+          });
+          get().endStudySession();
+        }
+      } catch (error) {
+        console.error('Failed to check for more cards:', error);
+        set({ 
+          error: error instanceof Error ? error.message : 'Failed to load more cards',
+          isLoading: false 
+        });
+        
+        // On error, end the session
+        get().endStudySession();
+      }
+    },
+
+    // Anki-style dynamic queue management
+    reorderSessionQueue: () => {
+      const { currentSession } = get();
+      if (!currentSession) return;
+
+      
+      // Get current time for comparison
+      const now = new Date();
+      
+      // Separate cards that are due now vs later
+      const dueNow: StudyCard[] = [];
+      const dueLater: StudyCard[] = [];
+      
+      // Start from current position to preserve cards already shown
+      const remainingCards = currentSession.cards.slice(currentSession.current_index + 1);
+      
+      remainingCards.forEach(card => {
+        const cardDueTime = new Date(card.due);
+        const minutesUntilDue = (cardDueTime.getTime() - now.getTime()) / (1000 * 60);
+        
+        // Cards due within learn-ahead window (default 20 minutes) go to immediate queue
+        const studySettings = useStudySettingsStore.getState();
+        const learnAheadMinutes = studySettings.learnAheadTimeMinutes;
+        
+        if (minutesUntilDue <= learnAheadMinutes) {
+          dueNow.push(card);
+        } else {
+          dueLater.push(card);
+        }
+      });
+
+      // Sort due-now cards with Anki priorities:
+      // 1. Learning cards (state 1,3) come first - they're being actively learned
+      // 2. Review cards (state 2) come after
+      // 3. Within each group, sort by due time (earliest first)
+      dueNow.sort((a, b) => {
+        const aIsLearning = a.state === 1 || a.state === 3; // Learning or Relearning
+        const bIsLearning = b.state === 1 || b.state === 3;
+        
+        if (aIsLearning && !bIsLearning) return -1; // a is learning, prioritize it
+        if (!aIsLearning && bIsLearning) return 1;  // b is learning, prioritize it
+        
+        // Same type - sort by due time
+        return new Date(a.due).getTime() - new Date(b.due).getTime();
+      });
+      
+      // Sort due-later cards by due time for future processing
+      dueLater.sort((a, b) => new Date(a.due).getTime() - new Date(b.due).getTime());
+
+      // Reconstruct the session queue: [already shown cards] + [due now sorted] + [due later sorted]
+      const alreadyShown = currentSession.cards.slice(0, currentSession.current_index + 1);
+      const reorderedCards = [...alreadyShown, ...dueNow, ...dueLater];
+
+      const updatedSession = {
+        ...currentSession,
+        cards: reorderedCards
+      };
+
+      // Log detailed queue status for debugging
+      const learningCards = dueNow.filter(c => c.state === 1 || c.state === 3).length;
+      const reviewCards = dueNow.filter(c => c.state === 2).length;
+      
+      
+      set({ currentSession: updatedSession });
+    },
+
+    insertCardAtCorrectPosition: (card: StudyCard) => {
+      const { currentSession } = get();
+      if (!currentSession) return;
+
+      
+      const now = new Date();
+      const cardDueTime = new Date(card.due);
+      const minutesUntilDue = (cardDueTime.getTime() - now.getTime()) / (1000 * 60);
+      
+
+      // CRITICAL FIX: If card is due in the future, ensure proper spacing
+      const currentIndex = currentSession.current_index;
+      const beforeCurrent = currentSession.cards.slice(0, currentIndex + 1);
+      const afterCurrent = currentSession.cards.slice(currentIndex + 1);
+      
+      let insertionIndex = 0;
+
+      if (minutesUntilDue > 0.5) {
+        // Card is due in the future - ensure minimum buffer spacing
+        // Calculate minimum buffer: at least 2-3 cards should be shown before this one reappears
+        const minimumBuffer = Math.max(2, Math.min(5, Math.floor(minutesUntilDue / 2)));
+        
+        
+        // Insert after the minimum buffer, but still respect time ordering
+        insertionIndex = Math.min(minimumBuffer, afterCurrent.length);
+        
+        // Within the post-buffer range, find correct time-based position
+        for (let i = insertionIndex; i < afterCurrent.length; i++) {
+          const existingCardDue = new Date(afterCurrent[i].due).getTime();
+          const newCardDue = cardDueTime.getTime();
+          
+          if (newCardDue <= existingCardDue) {
+            insertionIndex = i;
+            break;
+          }
+          insertionIndex = i + 1;
+        }
+      } else {
+        // Card is due now or very soon - use pure time-based ordering
+        for (let i = 0; i < afterCurrent.length; i++) {
+          const existingCardDue = new Date(afterCurrent[i].due).getTime();
+          const newCardDue = cardDueTime.getTime();
+          
+          if (newCardDue <= existingCardDue) {
+            insertionIndex = i;
+            break;
+          }
+          insertionIndex = i + 1;
+        }
+      }
+
+      // Insert the card at the calculated position
+      const newAfterCurrent = [
+        ...afterCurrent.slice(0, insertionIndex),
+        card,
+        ...afterCurrent.slice(insertionIndex)
+      ];
+
+      const updatedCards = [...beforeCurrent, ...newAfterCurrent];
+      
+      const updatedSession = {
+        ...currentSession,
+        cards: updatedCards,
+        total_cards: currentSession.total_cards + 1
+      };
+
+      set({ currentSession: updatedSession });
     }
   }))
 );

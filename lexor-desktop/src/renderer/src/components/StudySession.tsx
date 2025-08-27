@@ -508,8 +508,6 @@ export function StudySession() {
     const loadStats = async () => {
       setIsLoading(true);
       const comprehensiveStats = await getComprehensiveStats();
-      console.log('Comprehensive stats loaded:', comprehensiveStats);
-      console.log('Deck stats:', comprehensiveStats?.deckStats);
       setStats(comprehensiveStats);
       setIsLoading(false);
     };

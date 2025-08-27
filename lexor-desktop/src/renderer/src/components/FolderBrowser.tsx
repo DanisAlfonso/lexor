@@ -204,13 +204,54 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
   const handleDelete = async (item: FileItem) => {
     closeContextMenu();
     
-    const confirmMessage = item.isDirectory 
-      ? `Delete folder "${item.name}" and all its contents?`
-      : `Delete file "${item.name}"?`;
-      
-    if (!confirm(confirmMessage)) return;
-    
     try {
+      // Check if this file/folder contains flashcards
+      const flashcardService = new (await import('../services/flashcardService')).FlashcardService();
+      const flashcardCheck = await flashcardService.checkFlashcardsForPath(item.path);
+      
+      let shouldProceed = false;
+      let shouldDeleteFlashcards = false;
+      
+      if (flashcardCheck.hasFlashcards) {
+        const totalCards = flashcardCheck.decks.reduce((sum, deck) => sum + deck.cardCount, 0);
+        const deckNames = flashcardCheck.decks.map(d => d.name).join(', ');
+        
+        const message = item.isDirectory 
+          ? `The folder "${item.name}" contains ${totalCards} flashcard(s) in ${flashcardCheck.decks.length} deck(s): ${deckNames}\n\nWhat would you like to do?`
+          : `The file "${item.name}" contains ${totalCards} flashcard(s) in the deck "${deckNames}"\n\nWhat would you like to do?`;
+        
+        // Create custom dialog with three options
+        const result = await showFlashcardDeletionDialog(item.name, message, item.isDirectory);
+        
+        if (result === 'cancel') {
+          return; // User cancelled
+        } else if (result === 'delete-both') {
+          shouldProceed = true;
+          shouldDeleteFlashcards = true;
+        } else if (result === 'keep-flashcards') {
+          shouldProceed = true;
+          shouldDeleteFlashcards = false;
+        }
+      } else {
+        // No flashcards, just confirm normal deletion
+        const confirmMessage = item.isDirectory 
+          ? `Delete folder "${item.name}" and all its contents?`
+          : `Delete file "${item.name}"?`;
+          
+        shouldProceed = confirm(confirmMessage);
+      }
+      
+      if (!shouldProceed) return;
+      
+      // Delete flashcards first if requested
+      if (shouldDeleteFlashcards) {
+        const flashcardResult = await flashcardService.removeFlashcardsForPath(item.path);
+        if (!flashcardResult.success) {
+          alert(`Warning: Failed to delete flashcards: ${flashcardResult.message}`);
+        }
+      }
+      
+      // Delete the actual file/folder
       const result = await window.electronAPI?.file?.delete(item.path);
       if (result?.success) {
         // Check if the deleted item affects the currently open document
@@ -234,10 +275,94 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
             await loadFolderContents(currentFolder);
           }
         }
+        
+        // Refresh flashcard store if flashcards were involved
+        if (flashcardCheck.hasFlashcards) {
+          // Import flashcard store and trigger refresh
+          const { useFlashcardStore } = await import('../stores/flashcardStore');
+          const flashcardStore = useFlashcardStore.getState();
+          
+          // Refresh decks to reflect changes
+          await flashcardStore.loadDecks();
+        }
+      } else {
+        alert(`Failed to delete ${item.name}: ${result?.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Failed to delete:', error);
+      alert(`Failed to delete ${item.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  };
+
+  // Custom dialog for flashcard deletion decision
+  const showFlashcardDeletionDialog = (itemName: string, message: string, isFolder: boolean): Promise<'cancel' | 'delete-both' | 'keep-flashcards'> => {
+    return new Promise((resolve) => {
+      const dialog = document.createElement('div');
+      dialog.className = 'fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/50';
+      
+      const content = `
+        <div class="${isDarkMode 
+          ? 'bg-kanagawa-ink3 text-kanagawa-oldwhite border-kanagawa-ink5' 
+          : 'bg-white text-gray-900 border-gray-200'
+        } rounded-xl shadow-2xl p-6 w-96 max-w-[90vw] mx-4 border">
+          <div class="flex items-center mb-4">
+            <svg class="w-6 h-6 text-yellow-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z"></path>
+            </svg>
+            <h3 class="text-lg font-semibold">Flashcards Found</h3>
+          </div>
+          
+          <div class="mb-6">
+            <p class="text-sm whitespace-pre-line">${message}</p>
+          </div>
+          
+          <div class="flex flex-col space-y-2">
+            <button id="delete-both" class="w-full px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors">
+              Delete ${isFolder ? 'Folder' : 'File'} and Flashcards
+            </button>
+            <button id="keep-flashcards" class="${isDarkMode 
+              ? 'bg-accent-blue hover:bg-blue-600 text-white' 
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
+            } w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors">
+              Delete ${isFolder ? 'Folder' : 'File'} Only (Keep Flashcards)
+            </button>
+            <button id="cancel" class="${isDarkMode
+              ? 'text-kanagawa-gray hover:text-kanagawa-oldwhite hover:bg-kanagawa-ink4 border-kanagawa-ink5'
+              : 'text-gray-700 hover:bg-gray-50 border-gray-300'
+            } w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors border">
+              Cancel
+            </button>
+          </div>
+        </div>
+      `;
+      
+      dialog.innerHTML = content;
+      document.body.appendChild(dialog);
+      
+      // Add event listeners
+      dialog.querySelector('#delete-both')?.addEventListener('click', () => {
+        document.body.removeChild(dialog);
+        resolve('delete-both');
+      });
+      
+      dialog.querySelector('#keep-flashcards')?.addEventListener('click', () => {
+        document.body.removeChild(dialog);
+        resolve('keep-flashcards');
+      });
+      
+      dialog.querySelector('#cancel')?.addEventListener('click', () => {
+        document.body.removeChild(dialog);
+        resolve('cancel');
+      });
+      
+      // Close on outside click
+      dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) {
+          document.body.removeChild(dialog);
+          resolve('cancel');
+        }
+      });
+    });
   };
 
   const handleCreateFolder = (parentPath?: string) => {
@@ -506,13 +631,40 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     // Set up file system watching for the current folder
     if (currentFolder && window.electronAPI?.folder) {
       window.electronAPI.folder.watchDirectory(currentFolder);
+      
+      // Also watch the entire library folder if we're browsing within it
+      if (isPathInLibrary(currentFolder) && libraryFolder && currentFolder !== libraryFolder) {
+        window.electronAPI.folder.watchDirectory(libraryFolder);
+      }
 
       // Set up event listeners for file system changes
       const cleanup = [
-        window.electronAPI.folder.onFileAdded((filePath: string) => {
+        window.electronAPI.folder.onFileAdded(async (filePath: string) => {
           // Check if the added file is in the current directory we're viewing
           const fileDir = filePath.split('/').slice(0, -1).join('/');
           if (fileDir === currentFolder) {
+            // Auto-sync new markdown files to create flashcards
+            if ((filePath.endsWith('.md') || filePath.endsWith('.markdown')) && isPathInLibrary(filePath)) {
+              try {
+                // Read the file content
+                const content = await window.electronAPI?.file?.readFile(filePath);
+                if (content) {
+                  // Import flashcard service and sync the file
+                  const flashcardService = new (await import('../services/flashcardService')).FlashcardService();
+                  const result = await flashcardService.syncFromMarkdown(filePath, content);
+                  
+                  if (result.success && result.imported_count > 0) {
+                    // Refresh flashcard store
+                    const { useFlashcardStore } = await import('../stores/flashcardStore');
+                    const flashcardStore = useFlashcardStore.getState();
+                    await flashcardStore.loadDecks();
+                  }
+                }
+              } catch (error) {
+                console.error('Failed to auto-sync new flashcard file:', error);
+              }
+            }
+            
             // Refresh the folder contents
             if (isTreeView) {
               loadTreeData(currentFolder);
@@ -522,10 +674,28 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
           }
         }),
 
-        window.electronAPI.folder.onFolderAdded((dirPath: string) => {
+        window.electronAPI.folder.onFolderAdded(async (dirPath: string) => {
           // Check if the added folder is in the current directory we're viewing
           const parentDir = dirPath.split('/').slice(0, -1).join('/');
           if (parentDir === currentFolder) {
+            // Auto-scan new folders for markdown files if they're in the library
+            if (isPathInLibrary(dirPath)) {
+              try {
+                // Import flashcard service and scan the folder
+                const flashcardService = new (await import('../services/flashcardService')).FlashcardService();
+                const result = await flashcardService.discoverAndSyncLibrary(dirPath);
+                
+                if (result.success && result.cardsImported > 0) {
+                  // Refresh flashcard store
+                  const { useFlashcardStore } = await import('../stores/flashcardStore');
+                  const flashcardStore = useFlashcardStore.getState();
+                  await flashcardStore.loadDecks();
+                }
+              } catch (error) {
+                console.error('Failed to auto-scan new folder for flashcards:', error);
+              }
+            }
+            
             // Refresh the folder contents
             if (isTreeView) {
               loadTreeData(currentFolder);
@@ -535,10 +705,25 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
           }
         }),
 
-        window.electronAPI.folder.onFileRemoved((filePath: string) => {
+        window.electronAPI.folder.onFileRemoved(async (filePath: string) => {
           // Check if the removed file was in the current directory we're viewing
           const fileDir = filePath.split('/').slice(0, -1).join('/');
           if (fileDir === currentFolder) {
+            // Clean up orphaned flashcards if this was a markdown file
+            if (filePath.endsWith('.md') || filePath.endsWith('.markdown')) {
+              try {
+                const flashcardService = new (await import('../services/flashcardService')).FlashcardService();
+                await flashcardService.removeFlashcardsForPath(filePath);
+                
+                // Refresh flashcard store
+                const { useFlashcardStore } = await import('../stores/flashcardStore');
+                const flashcardStore = useFlashcardStore.getState();
+                await flashcardStore.loadDecks();
+              } catch (error) {
+                console.error('Failed to clean up flashcards for deleted file:', error);
+              }
+            }
+
             // Refresh the folder contents
             if (isTreeView) {
               loadTreeData(currentFolder);
@@ -555,10 +740,23 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
           }
         }),
 
-        window.electronAPI.folder.onFolderRemoved((dirPath: string) => {
+        window.electronAPI.folder.onFolderRemoved(async (dirPath: string) => {
           // Check if the removed folder was in the current directory we're viewing
           const parentDir = dirPath.split('/').slice(0, -1).join('/');
           if (parentDir === currentFolder) {
+            // Clean up orphaned flashcards for the entire folder
+            try {
+              const flashcardService = new (await import('../services/flashcardService')).FlashcardService();
+              await flashcardService.removeFlashcardsForPath(dirPath);
+              
+              // Refresh flashcard store
+              const { useFlashcardStore } = await import('../stores/flashcardStore');
+              const flashcardStore = useFlashcardStore.getState();
+              await flashcardStore.loadDecks();
+            } catch (error) {
+              console.error('Failed to clean up flashcards for deleted folder:', error);
+            }
+
             // Refresh the folder contents
             if (isTreeView) {
               loadTreeData(currentFolder);
@@ -575,13 +773,30 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
           }
         }),
 
-        window.electronAPI.folder.onFileChanged((filePath: string) => {
-          // If the changed file is currently open, we might want to notify the user
-          // For now, we'll just refresh the folder contents in case metadata changed
+        window.electronAPI.folder.onFileChanged(async (filePath: string) => {
+          // Auto-sync changed markdown files to update flashcards
           const fileDir = filePath.split('/').slice(0, -1).join('/');
           if (fileDir === currentFolder) {
-            // Optionally refresh - in many cases this might not be needed
-            // for file content changes, only for cases like file size display
+            if ((filePath.endsWith('.md') || filePath.endsWith('.markdown')) && isPathInLibrary(filePath)) {
+              try {
+                // Read the updated file content
+                const content = await window.electronAPI?.file?.readFile(filePath);
+                if (content) {
+                  // Import flashcard service and sync the changes
+                  const flashcardService = new (await import('../services/flashcardService')).FlashcardService();
+                  const result = await flashcardService.syncFromMarkdown(filePath, content);
+                  
+                  if (result.success) {
+                    // Refresh flashcard store
+                    const { useFlashcardStore } = await import('../stores/flashcardStore');
+                    const flashcardStore = useFlashcardStore.getState();
+                    await flashcardStore.loadDecks();
+                  }
+                }
+              } catch (error) {
+                console.error('Failed to auto-sync changed flashcard file:', error);
+              }
+            }
           }
         })
       ];

@@ -154,3 +154,28 @@ export interface StudySessionResponse {
   cards: StudyCard[];
   session_id: string;
 }
+
+// User study preferences
+export interface StudySettings {
+  // Daily limits
+  newCardsPerDay: number;
+  maxReviewsPerDay: number;
+  
+  // Session settings
+  learnAheadTimeMinutes: number; // How far ahead to show learning cards
+  timezoneOffset: number; // For day boundary calculations
+  
+  // Advanced FSRS settings
+  desiredRetention: number; // 0.8 to 0.95
+  maximumInterval: number; // In days
+  learningSteps: number[]; // Minutes for learning steps
+  relearningSteps: number[]; // Minutes for relearning steps
+  
+  // Display preferences  
+  showAnswerTimer: boolean;
+  showProgress: boolean;
+  
+  // Study behavior
+  buryRelatedCards: boolean; // Bury cards from same note
+  autoAdvance: boolean; // Auto-advance after rating
+}

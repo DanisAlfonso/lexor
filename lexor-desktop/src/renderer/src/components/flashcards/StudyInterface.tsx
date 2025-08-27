@@ -349,7 +349,8 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
     showCardAnswer,
     reviewCurrentCard,
     nextCard,
-    endStudySession
+    endStudySession,
+    completionMessage
   } = useFlashcardStore();
   
   const [sessionStartTime] = useState<Date>(new Date());
@@ -422,10 +423,8 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
     await reviewCurrentCard(rating);
     setCardsReviewed(prev => prev + 1);
     
-    // Check if session is complete
-    if (currentSession && currentSession.current_index >= currentSession.cards.length - 1) {
-      handleComplete();
-    }
+    // Note: Session completion is now handled automatically by the nextCard/checkForMoreCards logic
+    // The session will end when there are truly no more cards available to study
   };
 
   const handleComplete = () => {
@@ -484,25 +483,55 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
   };
 
   if (!currentSession || !currentCard) {
+    // Show completion message if available, otherwise default message
+    const hasCompletionMessage = !!completionMessage;
+    
     return (
       <div className={clsx(
         'flex items-center justify-center h-full',
         isDarkMode ? 'bg-kanagawa-ink3' : 'bg-gray-50'
       )}>
-        <div className="text-center">
-          <BookOpenIcon className={clsx(
-            'mx-auto h-12 w-12 mb-4',
-            isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'
-          )} />
-          <h3 className={clsx(
-            'text-lg font-medium mb-2',
-            isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
-          )}>
-            No active study session
-          </h3>
-          <p className={isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-500'}>
-            Select a deck to start studying
-          </p>
+        <div className="text-center max-w-md mx-auto px-4">
+          {hasCompletionMessage ? (
+            // Show completion celebration
+            <>
+              <TrophyIcon className={clsx(
+                'mx-auto h-16 w-16 mb-4',
+                isDarkMode ? 'text-yellow-400' : 'text-yellow-500'
+              )} />
+              <div className={clsx(
+                'p-4 rounded-lg border-l-4 border-green-400 mb-4',
+                isDarkMode 
+                  ? 'bg-green-900 bg-opacity-20 text-green-300' 
+                  : 'bg-green-50 text-green-700'
+              )}>
+                <p className="text-sm font-medium">{completionMessage}</p>
+              </div>
+              <p className={clsx(
+                'text-xs mt-4',
+                isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+              )}>
+                The deck browser will appear automatically, or click "Flashcards" in the sidebar
+              </p>
+            </>
+          ) : (
+            // Show default start message  
+            <>
+              <BookOpenIcon className={clsx(
+                'mx-auto h-12 w-12 mb-4',
+                isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'
+              )} />
+              <h3 className={clsx(
+                'text-lg font-medium mb-2',
+                isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+              )}>
+                Ready to Study
+              </h3>
+              <p className={isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-500'}>
+                Select a deck from the browser to start studying
+              </p>
+            </>
+          )}
         </div>
       </div>
     );
