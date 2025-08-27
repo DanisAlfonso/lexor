@@ -60,6 +60,8 @@ export interface FlashcardState {
   // Actions - Statistics
   loadDeckStats: (deckId: number) => Promise<void>;
   loadAllStats: () => Promise<void>;
+  getComprehensiveStats: () => Promise<any>;
+  getDeckDetailedStats: (deckId: number) => Promise<any>;
   
   // Utility actions
   clearError: () => void;
@@ -506,6 +508,26 @@ export const useFlashcardStore = create<FlashcardState>()(
         set({ studyStats: stats });
       } catch (error) {
         console.error('Failed to load all stats:', error);
+      }
+    },
+
+    getComprehensiveStats: async () => {
+      const { service } = get();
+      try {
+        return await service.getComprehensiveStats();
+      } catch (error) {
+        console.error('Failed to load comprehensive stats:', error);
+        return null;
+      }
+    },
+
+    getDeckDetailedStats: async (deckId: number) => {
+      const { service } = get();
+      try {
+        return await service.getDeckDetailedStats(deckId);
+      } catch (error) {
+        console.error('Failed to load deck detailed stats:', error);
+        return null;
       }
     },
 

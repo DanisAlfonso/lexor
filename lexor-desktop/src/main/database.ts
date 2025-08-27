@@ -478,11 +478,16 @@ export class FlashcardDatabase {
 
   // Card state operations for FSRS
   private initializeCardState(cardId: number): void {
+    // For new cards (state = 0), set due date to a future date so they don't appear in due cards
+    // They should only appear when specifically requesting new cards for study
+    const futureDate = new Date();
+    futureDate.setFullYear(futureDate.getFullYear() + 10);
+    
     const stmt = this.db.prepare(`
       INSERT INTO card_states (card_id, due_date, stability, difficulty, elapsed_days, scheduled_days, learning_steps, reps, lapses, state)
-      VALUES (?, datetime('now'), 0, 0, 0, 0, 0, 0, 0, 0)
+      VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0, 0)
     `);
-    stmt.run(cardId);
+    stmt.run(cardId, futureDate.toISOString());
   }
 
   public getCardState(cardId: number) {
@@ -546,6 +551,7 @@ export class FlashcardDatabase {
       JOIN card_states cs ON f.id = cs.card_id
       JOIN decks d ON f.deck_id = d.id
       WHERE cs.due_date <= datetime('now')
+        AND cs.state != 0
       ORDER BY cs.due_date ASC
       ${limit ? 'LIMIT ?' : ''}
     `);
@@ -717,6 +723,7 @@ export class FlashcardDatabase {
       JOIN decks d ON f.deck_id = d.id
       WHERE f.deck_id IN (SELECT id FROM deck_hierarchy)
         AND cs.due_date <= datetime('now')
+        AND cs.state != 0
       ORDER BY cs.due_date ASC
     `);
     return stmt.all(deckId);

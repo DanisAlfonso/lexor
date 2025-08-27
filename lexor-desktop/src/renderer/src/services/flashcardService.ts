@@ -299,14 +299,18 @@ export class FlashcardService {
 
   private async initializeCardState(cardId: number): Promise<void> {
     const newCard = createEmptyCard();
+    
+    // For new cards (state = 0), set due date to a future date so they don't appear in due cards
+    // They should only appear when specifically requesting new cards for study
     const dueDate = new Date();
+    dueDate.setFullYear(dueDate.getFullYear() + 10); // Set far in future for new cards
     
     await this.execute(`
       INSERT INTO card_states (card_id, due_date, stability, difficulty, elapsed_days, scheduled_days, learning_steps, reps, lapses, state)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       cardId,
-      dueDate.toISOString(),
+      dueDate.toISOString().replace('T', ' ').replace('Z', ''),
       newCard.stability,
       newCard.difficulty,
       newCard.elapsed_days,
@@ -743,6 +747,7 @@ export class FlashcardService {
         JOIN decks d ON f.deck_id = d.id
         WHERE f.deck_id IN (SELECT id FROM deck_hierarchy)
           AND cs.due_date <= datetime('now')
+          AND cs.state != 0
         ORDER BY cs.due_date ASC
       `;
       params = [deckId];
@@ -755,6 +760,7 @@ export class FlashcardService {
         JOIN card_states cs ON f.id = cs.card_id
         JOIN decks d ON f.deck_id = d.id
         WHERE cs.due_date <= datetime('now')
+          AND cs.state != 0
       `;
       
       if (deckId) {
@@ -865,17 +871,22 @@ export class FlashcardService {
   // Review a card using FSRS
   async reviewCard(cardId: number, rating: Rating, reviewDate?: Date): Promise<boolean> {
     try {
+      console.log('🔍 ReviewCard called:', { cardId, rating, reviewDate });
+      
       // Get current card state
       const cardState = await this.query(
         'SELECT * FROM card_states WHERE card_id = ?',
         [cardId]
       );
 
+      console.log('🔍 Card state found:', cardState);
+
       if (cardState.length === 0) {
         throw new Error('Card state not found');
       }
 
       const current = cardState[0];
+      console.log('🔍 Current card state:', current);
       
       // Create FSRS card from current state
       const fsrsCard: Card = {
@@ -893,14 +904,35 @@ export class FlashcardService {
 
       // Convert our rating to FSRS rating
       const fsrsRating = this.convertToFSRSRating(rating);
+      console.log('🔍 FSRS Rating conversion:', { originalRating: rating, fsrsRating });
       
       // Calculate new scheduling using FSRS
       const now = reviewDate || new Date();
-      const scheduling_cards = this.fsrs.repeat(fsrsCard, now);
+      console.log('🔍 Calling FSRS repeat with:', { fsrsCard, now });
       
-      // Get the card for the given rating
-      const newCard = scheduling_cards[fsrsRating];
-      const log = scheduling_cards.log;
+      const scheduling_cards = this.fsrs.repeat(fsrsCard, now);
+      console.log('🔍 FSRS repeat returned:', scheduling_cards);
+      console.log('🔍 Available scheduling keys:', Object.keys(scheduling_cards));
+      
+      // Get the card for the given rating (FSRS uses string keys)
+      const scheduleResult = scheduling_cards[fsrsRating.toString()];
+      console.log('🔍 Selected schedule result for rating:', { fsrsRating, stringKey: fsrsRating.toString(), scheduleResult });
+      
+      if (!scheduleResult || !scheduleResult.card) {
+        throw new Error(`FSRS scheduling failed: no card returned for rating ${fsrsRating}`);
+      }
+      
+      // Extract the actual card and log from the nested structure
+      const newCard = scheduleResult.card;
+      const log = scheduleResult.log;
+
+      console.log('🔍 FSRS calculation complete. New card full object:', newCard);
+      console.log('🔍 New card properties:', Object.keys(newCard));
+      console.log('🔍 New card due property:', { 
+        due: newCard.due, 
+        dueType: typeof newCard.due,
+        dueConstructor: newCard.due?.constructor?.name 
+      });
 
       // Update card state
       await this.execute(`
@@ -909,7 +941,7 @@ export class FlashcardService {
             scheduled_days = ?, learning_steps = ?, reps = ?, lapses = ?, state = ?, last_review = ?
         WHERE card_id = ?
       `, [
-        newCard.due.toISOString(),
+        newCard.due.toISOString().replace('T', ' ').replace('Z', ''),
         newCard.stability,
         newCard.difficulty,
         newCard.elapsed_days,
@@ -918,11 +950,12 @@ export class FlashcardService {
         newCard.reps,
         newCard.lapses,
         newCard.state,
-        now.toISOString(),
+        now.toISOString().replace('T', ' ').replace('Z', ''),
         cardId
       ]);
 
       // Record the review
+      console.log('🔍 Recording review to database...');
       await this.execute(`
         INSERT INTO reviews (card_id, rating, scheduled_days, actual_days, stability, difficulty, elapsed_days, lapses, reps, state)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -939,9 +972,10 @@ export class FlashcardService {
         newCard.state
       ]);
 
+      console.log('✅ Review recorded successfully!');
       return true;
     } catch (error) {
-      console.error('Failed to review card:', error);
+      console.error('❌ Error reviewing card:', error);
       return false;
     }
   }
@@ -1012,6 +1046,227 @@ export class FlashcardService {
     `);
 
     return rows[0] as DeckStats;
+  }
+
+  // Comprehensive Study Statistics
+  async getComprehensiveStats(): Promise<{
+    overview: {
+      totalCards: number;
+      totalDecks: number;
+      cardsStudiedToday: number;
+      studyStreak: number;
+      totalStudyTime: number; // in minutes
+      avgRetention: number;
+    };
+    cardBreakdown: {
+      new: number;
+      learning: number;
+      review: number;
+      due: number;
+      mature: number; // Cards with interval > 21 days
+    };
+    reviewStats: {
+      todayReviews: number;
+      weekReviews: number;
+      monthReviews: number;
+      totalReviews: number;
+      avgReviewsPerDay: number;
+    };
+    performanceStats: {
+      avgDifficulty: number;
+      avgStability: number;
+      againRate: number;
+      hardRate: number;
+      goodRate: number;
+      easyRate: number;
+    };
+    timeStats: {
+      dailyStudyTime: { date: string; minutes: number }[];
+      weeklyStudyTime: { week: string; minutes: number }[];
+      monthlyStudyTime: { month: string; minutes: number }[];
+    };
+    deckStats: {
+      id: number;
+      name: string;
+      totalCards: number;
+      dueCards: number;
+      retention: number;
+      avgDifficulty: number;
+    }[];
+  }> {
+    // Overview stats
+    const overviewRows = await this.query(`
+      SELECT 
+        COUNT(DISTINCT f.id) as totalCards,
+        COUNT(DISTINCT d.id) as totalDecks,
+        COUNT(DISTINCT CASE 
+          WHEN r.review_date >= date('now', 'localtime') 
+          THEN r.card_id 
+        END) as cardsStudiedToday
+      FROM flashcards f
+      JOIN decks d ON f.deck_id = d.id
+      LEFT JOIN card_states cs ON f.id = cs.card_id
+      LEFT JOIN reviews r ON f.id = r.card_id
+    `);
+
+    // Card breakdown
+    const cardBreakdownRows = await this.query(`
+      SELECT 
+        SUM(CASE WHEN cs.state = 0 THEN 1 ELSE 0 END) as new,
+        SUM(CASE WHEN cs.state IN (1, 3) THEN 1 ELSE 0 END) as learning,
+        SUM(CASE WHEN cs.state = 2 THEN 1 ELSE 0 END) as review,
+        SUM(CASE WHEN cs.due_date <= datetime('now') AND cs.state != 0 THEN 1 ELSE 0 END) as due,
+        SUM(CASE WHEN cs.state = 2 AND cs.scheduled_days > 21 THEN 1 ELSE 0 END) as mature
+      FROM flashcards f
+      JOIN card_states cs ON f.id = cs.card_id
+    `);
+
+    // Review stats
+    const reviewStatsRows = await this.query(`
+      SELECT 
+        COUNT(CASE WHEN r.review_date >= date('now', 'localtime') THEN 1 END) as todayReviews,
+        COUNT(CASE WHEN r.review_date >= date('now', 'localtime', '-7 days') THEN 1 END) as weekReviews,
+        COUNT(CASE WHEN r.review_date >= date('now', 'localtime', '-30 days') THEN 1 END) as monthReviews,
+        COUNT(*) as totalReviews,
+        ROUND(COUNT(*) * 1.0 / MAX(1, julianday('now') - julianday(MIN(r.review_date))), 2) as avgReviewsPerDay
+      FROM reviews r
+    `);
+
+    // Performance stats
+    const performanceRows = await this.query(`
+      SELECT 
+        ROUND(AVG(cs.difficulty), 2) as avgDifficulty,
+        ROUND(AVG(cs.stability), 2) as avgStability,
+        ROUND(COUNT(CASE WHEN r.rating = 1 THEN 1 END) * 100.0 / COUNT(*), 1) as againRate,
+        ROUND(COUNT(CASE WHEN r.rating = 2 THEN 1 END) * 100.0 / COUNT(*), 1) as hardRate,
+        ROUND(COUNT(CASE WHEN r.rating = 3 THEN 1 END) * 100.0 / COUNT(*), 1) as goodRate,
+        ROUND(COUNT(CASE WHEN r.rating = 4 THEN 1 END) * 100.0 / COUNT(*), 1) as easyRate
+      FROM card_states cs
+      LEFT JOIN reviews r ON cs.card_id = r.card_id
+    `);
+
+    // Daily study time (last 30 days)
+    const dailyTimeRows = await this.query(`
+      SELECT 
+        date(r.review_date, 'localtime') as date,
+        COUNT(*) * 2 as minutes  -- Estimate 2 minutes per review
+      FROM reviews r
+      WHERE r.review_date >= date('now', 'localtime', '-30 days')
+      GROUP BY date(r.review_date, 'localtime')
+      ORDER BY date
+    `);
+
+    // Weekly study time (last 12 weeks)
+    const weeklyTimeRows = await this.query(`
+      SELECT 
+        strftime('%Y-W%W', r.review_date, 'localtime') as week,
+        COUNT(*) * 2 as minutes
+      FROM reviews r
+      WHERE r.review_date >= date('now', 'localtime', '-84 days')
+      GROUP BY strftime('%Y-W%W', r.review_date, 'localtime')
+      ORDER BY week
+    `);
+
+    // Monthly study time (last 12 months)
+    const monthlyTimeRows = await this.query(`
+      SELECT 
+        strftime('%Y-%m', r.review_date, 'localtime') as month,
+        COUNT(*) * 2 as minutes
+      FROM reviews r
+      WHERE r.review_date >= date('now', 'localtime', '-365 days')
+      GROUP BY strftime('%Y-%m', r.review_date, 'localtime')
+      ORDER BY month
+    `);
+
+    // Deck performance
+    const deckStatsRows = await this.query(`
+      SELECT 
+        d.id,
+        d.name,
+        COUNT(DISTINCT f.id) as totalCards,
+        COUNT(DISTINCT CASE WHEN cs.due_date <= datetime('now') AND cs.state != 0 THEN f.id END) as dueCards,
+        ROUND(AVG(CASE WHEN r.rating >= 3 THEN 1.0 ELSE 0.0 END) * 100, 1) as retention,
+        ROUND(AVG(cs.difficulty), 2) as avgDifficulty
+      FROM decks d
+      JOIN flashcards f ON d.id = f.deck_id
+      JOIN card_states cs ON f.id = cs.card_id
+      LEFT JOIN reviews r ON f.id = r.card_id
+      WHERE d.file_path IS NOT NULL  -- Only file-based decks
+      GROUP BY d.id, d.name
+      HAVING totalCards > 0
+      ORDER BY totalCards DESC
+      LIMIT 20
+    `);
+
+    // Calculate study streak
+    const streakRows = await this.query(`
+      SELECT COUNT(*) as streak
+      FROM (
+        SELECT date(review_date, 'localtime') as study_date
+        FROM reviews
+        WHERE review_date >= date('now', 'localtime', '-100 days')
+        GROUP BY date(review_date, 'localtime')
+        HAVING study_date = date('now', 'localtime', '-' || 
+          (SELECT COUNT(DISTINCT date(r2.review_date, 'localtime'))
+           FROM reviews r2 
+           WHERE date(r2.review_date, 'localtime') >= date('now', 'localtime', '-100 days')
+             AND date(r2.review_date, 'localtime') <= date('now', 'localtime')
+          ) + 1 || ' days')
+      )
+    `);
+
+    // Calculate total study time and average retention
+    const totalTimeRows = await this.query(`
+      SELECT 
+        COUNT(*) * 2 as totalStudyTime,
+        ROUND(AVG(CASE WHEN rating >= 3 THEN 1.0 ELSE 0.0 END) * 100, 1) as avgRetention
+      FROM reviews
+    `);
+
+    const overview = overviewRows[0] || {};
+    const cardBreakdown = cardBreakdownRows[0] || {};
+    const reviewStats = reviewStatsRows[0] || {};
+    const performance = performanceRows[0] || {};
+    const timeStats = totalTimeRows[0] || {};
+
+    return {
+      overview: {
+        totalCards: overview.totalCards || 0,
+        totalDecks: overview.totalDecks || 0,
+        cardsStudiedToday: overview.cardsStudiedToday || 0,
+        studyStreak: streakRows[0]?.streak || 0,
+        totalStudyTime: timeStats.totalStudyTime || 0,
+        avgRetention: timeStats.avgRetention || 0,
+      },
+      cardBreakdown: {
+        new: cardBreakdown.new || 0,
+        learning: cardBreakdown.learning || 0,
+        review: cardBreakdown.review || 0,
+        due: cardBreakdown.due || 0,
+        mature: cardBreakdown.mature || 0,
+      },
+      reviewStats: {
+        todayReviews: reviewStats.todayReviews || 0,
+        weekReviews: reviewStats.weekReviews || 0,
+        monthReviews: reviewStats.monthReviews || 0,
+        totalReviews: reviewStats.totalReviews || 0,
+        avgReviewsPerDay: reviewStats.avgReviewsPerDay || 0,
+      },
+      performanceStats: {
+        avgDifficulty: performance.avgDifficulty || 0,
+        avgStability: performance.avgStability || 0,
+        againRate: performance.againRate || 0,
+        hardRate: performance.hardRate || 0,
+        goodRate: performance.goodRate || 0,
+        easyRate: performance.easyRate || 0,
+      },
+      timeStats: {
+        dailyStudyTime: dailyTimeRows || [],
+        weeklyStudyTime: weeklyTimeRows || [],
+        monthlyStudyTime: monthlyTimeRows || [],
+      },
+      deckStats: deckStatsRows || [],
+    };
   }
 
   // Auto-discovery system for flashcard files
@@ -1253,6 +1508,317 @@ export class FlashcardService {
         removed: 0, 
         errors: [error instanceof Error ? error.message : 'Failed to remove duplicates'] 
       };
+    }
+  }
+
+  // Fix existing cards with incorrect due dates (migration helper)
+  async fixExistingCardDueDates(): Promise<{ success: boolean, fixed: number, message: string }> {
+    try {
+      // First, fix timezone format issues - convert ISO strings to SQLite format
+      await this.execute(`
+        UPDATE card_states 
+        SET due_date = REPLACE(REPLACE(due_date, 'T', ' '), 'Z', '')
+        WHERE due_date LIKE '%T%Z'
+      `);
+      
+      // Count how many new cards need fixing (have current/past due dates)
+      const countBefore = await this.query(`
+        SELECT COUNT(*) as count 
+        FROM card_states 
+        WHERE state = 0 
+          AND due_date <= datetime('now', '+1 day')
+      `);
+      
+      const beforeCount = countBefore[0]?.count || 0;
+      
+      // Fix all new cards (state = 0) that have current or past due dates
+      await this.execute(`
+        UPDATE card_states 
+        SET due_date = datetime('now', '+10 years')
+        WHERE state = 0 
+          AND due_date <= datetime('now', '+1 day')
+      `);
+      
+      return { 
+        success: true, 
+        fixed: beforeCount, 
+        message: `Fixed timezone formats and ${beforeCount} cards with incorrect due dates` 
+      };
+    } catch (error) {
+      return { 
+        success: false, 
+        fixed: 0, 
+        message: error instanceof Error ? error.message : 'Failed to fix card due dates' 
+      };
+    }
+  }
+
+  // Get next due cards with detailed scheduling info
+  async getNextDueSchedule(limit = 20): Promise<{
+    cardId: number;
+    front: string;
+    due_date: string;
+    minutes_until_due: number;
+    state: number;
+    stability: number;
+    difficulty: number;
+  }[]> {
+    const rows = await this.query(`
+      SELECT 
+        f.id as cardId,
+        f.front,
+        cs.due_date,
+        ROUND((julianday(cs.due_date) - julianday('now')) * 24 * 60) as minutes_until_due,
+        cs.state,
+        cs.stability,
+        cs.difficulty
+      FROM flashcards f
+      JOIN card_states cs ON f.id = cs.card_id
+      WHERE cs.state != 0  -- Exclude new cards
+      ORDER BY cs.due_date ASC
+      LIMIT ?
+    `, [limit]);
+    
+    return rows;
+  }
+
+  // DIAGNOSTIC: Debug FSRS state  
+  async debugFSRSState(): Promise<{ 
+    cardStates: any[], 
+    recentReviews: any[], 
+    dueCards: any[], 
+    nextDueCards: any[],
+    summary: any 
+  }> {
+    try {
+      // Get card state breakdown
+      const cardStates = await this.query(`
+        SELECT 
+          cs.state,
+          COUNT(*) as count,
+          MIN(cs.due_date) as earliest_due,
+          MAX(cs.due_date) as latest_due,
+          AVG(cs.stability) as avg_stability,
+          AVG(cs.difficulty) as avg_difficulty
+        FROM card_states cs
+        GROUP BY cs.state
+        ORDER BY cs.state
+      `);
+
+      // Get recent reviews (last 7 days)
+      const recentReviews = await this.query(`
+        SELECT 
+          r.card_id,
+          r.rating,
+          r.review_date,
+          f.front,
+          cs.state,
+          cs.due_date
+        FROM reviews r
+        JOIN flashcards f ON r.card_id = f.id
+        JOIN card_states cs ON f.id = cs.card_id
+        WHERE r.review_date >= datetime('now', '-7 days')
+        ORDER BY r.review_date DESC
+        LIMIT 20
+      `);
+
+      // Get cards currently due
+      const dueCards = await this.query(`
+        SELECT 
+          f.id,
+          f.front,
+          cs.state,
+          cs.due_date,
+          cs.stability,
+          cs.difficulty,
+          datetime('now') as current_time,
+          (cs.due_date <= datetime('now')) as is_due,
+          (cs.due_date <= datetime('now') AND cs.state != 0) as should_be_available
+        FROM flashcards f
+        JOIN card_states cs ON f.id = cs.card_id
+        WHERE cs.due_date <= datetime('now', '+1 day')
+        ORDER BY cs.due_date
+        LIMIT 20
+      `);
+
+      // Get next due cards
+      const nextDueCards = await this.getNextDueSchedule(10);
+
+      // Overall summary
+      const summary = await this.query(`
+        SELECT 
+          COUNT(DISTINCT f.id) as total_cards,
+          COUNT(DISTINCT r.id) as total_reviews,
+          COUNT(DISTINCT CASE WHEN cs.due_date <= datetime('now') THEN f.id END) as cards_due_now,
+          COUNT(DISTINCT CASE WHEN cs.state = 0 THEN f.id END) as new_cards,
+          COUNT(DISTINCT CASE WHEN r.review_date >= datetime('now', '-1 day') THEN r.card_id END) as cards_reviewed_today
+        FROM flashcards f
+        LEFT JOIN card_states cs ON f.id = cs.card_id
+        LEFT JOIN reviews r ON f.id = r.card_id
+      `);
+
+      return {
+        cardStates,
+        recentReviews,
+        dueCards,
+        nextDueCards,
+        summary: summary[0] || {}
+      };
+    } catch (error) {
+      console.error('Debug FSRS state failed:', error);
+      return {
+        cardStates: [],
+        recentReviews: [],
+        dueCards: [],
+        nextDueCards: [],
+        summary: {}
+      };
+    }
+  }
+
+  // Get detailed deck statistics with card-level information
+  async getDeckDetailedStats(deckId: number): Promise<{
+    deck: {
+      id: number;
+      name: string;
+      totalCards: number;
+      newCards: number;
+      learningCards: number;
+      reviewCards: number;
+      matureCards: number;
+      dueCards: number;
+      avgRetention: number;
+      avgDifficulty: number;
+      avgStability: number;
+      totalReviews: number;
+    };
+    cards: {
+      id: number;
+      front: string;
+      back: string;
+      state: number;
+      stateName: string;
+      due_date: string;
+      minutesUntilDue: number;
+      stability: number;
+      difficulty: number;
+      reps: number;
+      lapses: number;
+      lastReview: string | null;
+      retention: number;
+      totalReviews: number;
+    }[];
+    stateDistribution: {
+      state: number;
+      stateName: string;
+      count: number;
+      percentage: number;
+    }[];
+    upcomingReviews: {
+      today: number;
+      tomorrow: number;
+      thisWeek: number;
+      nextWeek: number;
+    };
+  } | null> {
+    try {
+      // Get deck overview
+      const deckOverview = await this.query(`
+        SELECT 
+          d.id,
+          d.name,
+          COUNT(DISTINCT f.id) as totalCards,
+          COUNT(DISTINCT CASE WHEN cs.state = 0 THEN f.id END) as newCards,
+          COUNT(DISTINCT CASE WHEN cs.state IN (1, 3) THEN f.id END) as learningCards,
+          COUNT(DISTINCT CASE WHEN cs.state = 2 THEN f.id END) as reviewCards,
+          COUNT(DISTINCT CASE WHEN cs.state = 2 AND cs.scheduled_days > 21 THEN f.id END) as matureCards,
+          COUNT(DISTINCT CASE WHEN cs.due_date <= datetime('now') AND cs.state != 0 THEN f.id END) as dueCards,
+          ROUND(AVG(CASE WHEN r.rating >= 3 THEN 100.0 ELSE 0.0 END), 1) as avgRetention,
+          ROUND(AVG(cs.difficulty), 2) as avgDifficulty,
+          ROUND(AVG(cs.stability), 2) as avgStability,
+          COUNT(DISTINCT r.id) as totalReviews
+        FROM decks d
+        JOIN flashcards f ON d.id = f.deck_id
+        JOIN card_states cs ON f.id = cs.card_id
+        LEFT JOIN reviews r ON f.id = r.card_id
+        WHERE d.id = ?
+        GROUP BY d.id, d.name
+      `, [deckId]);
+
+      if (deckOverview.length === 0) return null;
+
+      // Get detailed card information
+      const cards = await this.query(`
+        SELECT 
+          f.id,
+          f.front,
+          f.back,
+          cs.state,
+          CASE cs.state
+            WHEN 0 THEN 'New'
+            WHEN 1 THEN 'Learning'
+            WHEN 2 THEN 'Review'
+            WHEN 3 THEN 'Relearning'
+            ELSE 'Unknown'
+          END as stateName,
+          cs.due_date,
+          ROUND((julianday(cs.due_date) - julianday('now')) * 24 * 60) as minutesUntilDue,
+          cs.stability,
+          cs.difficulty,
+          cs.reps,
+          cs.lapses,
+          cs.last_review as lastReview,
+          ROUND(AVG(CASE WHEN r.rating >= 3 THEN 100.0 ELSE 0.0 END), 1) as retention,
+          COUNT(r.id) as totalReviews
+        FROM flashcards f
+        JOIN card_states cs ON f.id = cs.card_id
+        LEFT JOIN reviews r ON f.id = r.card_id
+        WHERE f.deck_id = ?
+        GROUP BY f.id, f.front, f.back, cs.state, cs.due_date, cs.stability, cs.difficulty, cs.reps, cs.lapses, cs.last_review
+        ORDER BY cs.due_date ASC
+      `, [deckId]);
+
+      // Get state distribution
+      const stateDistribution = await this.query(`
+        SELECT 
+          cs.state,
+          CASE cs.state
+            WHEN 0 THEN 'New'
+            WHEN 1 THEN 'Learning'
+            WHEN 2 THEN 'Review'
+            WHEN 3 THEN 'Relearning'
+            ELSE 'Unknown'
+          END as stateName,
+          COUNT(*) as count,
+          ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM flashcards WHERE deck_id = ?), 1) as percentage
+        FROM flashcards f
+        JOIN card_states cs ON f.id = cs.card_id
+        WHERE f.deck_id = ?
+        GROUP BY cs.state
+        ORDER BY cs.state
+      `, [deckId, deckId]);
+
+      // Get upcoming review schedule
+      const upcomingReviews = await this.query(`
+        SELECT 
+          COUNT(CASE WHEN cs.due_date <= datetime('now', '+1 day') AND cs.due_date > datetime('now') THEN 1 END) as today,
+          COUNT(CASE WHEN cs.due_date <= datetime('now', '+2 days') AND cs.due_date > datetime('now', '+1 day') THEN 1 END) as tomorrow,
+          COUNT(CASE WHEN cs.due_date <= datetime('now', '+7 days') AND cs.due_date > datetime('now') THEN 1 END) as thisWeek,
+          COUNT(CASE WHEN cs.due_date <= datetime('now', '+14 days') AND cs.due_date > datetime('now', '+7 days') THEN 1 END) as nextWeek
+        FROM flashcards f
+        JOIN card_states cs ON f.id = cs.card_id
+        WHERE f.deck_id = ? AND cs.state != 0
+      `, [deckId]);
+
+      return {
+        deck: deckOverview[0],
+        cards,
+        stateDistribution,
+        upcomingReviews: upcomingReviews[0] || { today: 0, tomorrow: 0, thisWeek: 0, nextWeek: 0 }
+      };
+    } catch (error) {
+      console.error('Failed to get detailed deck stats:', error);
+      return null;
     }
   }
 
