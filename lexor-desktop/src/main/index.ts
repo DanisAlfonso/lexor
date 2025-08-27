@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, ipcMain, shell, protocol } from 'electron';
 import { join } from 'path';
 import { autoUpdater } from 'electron-updater';
-import { createMenu, updateMenuState } from './menu';
+import { createMenu, updateMenuState, setupWindowResizeTracking } from './menu';
 import { WindowManager } from './windows';
 import { watch, FSWatcher } from 'chokidar';
 import { FlashcardDatabase } from './database';
@@ -98,6 +98,9 @@ class LexorApp {
       if (!this.isDevelopment) {
         autoUpdater.checkForUpdatesAndNotify();
       }
+      
+      // Set up window resize tracking for menu functionality
+      setupWindowResizeTracking();
       
       // Request stored settings from renderer to restore window state
       mainWindow.webContents.send('window:request-settings');

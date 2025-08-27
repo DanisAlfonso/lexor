@@ -721,6 +721,26 @@ function showAbout(): void {
 
 // Window management functions
 let previousWindowBounds: { x: number; y: number; width: number; height: number } | null = null;
+let userPreferredSize: { width: number; height: number } | null = null;
+let isWindowAutoSized = false; // Track if current size was set by fill/tile functions
+
+// Track user window resize events
+export function setupWindowResizeTracking(): void {
+  // Set up tracking for all current windows
+  BrowserWindow.getAllWindows().forEach(window => {
+    window.removeAllListeners('resize'); // Remove any existing listeners
+    window.on('resize', () => {
+      // Only track resize as user action if not currently auto-sizing
+      if (!isWindowAutoSized) {
+        const bounds = window.getBounds();
+        userPreferredSize = {
+          width: bounds.width,
+          height: bounds.height
+        };
+      }
+    });
+  });
+}
 
 function saveCurrentBounds(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
@@ -731,31 +751,66 @@ function saveCurrentBounds(): void {
 function centerWindow(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   if (!focusedWindow) return;
+  
   saveCurrentBounds();
   
   const { screen } = require('electron');
   const primaryDisplay = screen.getPrimaryDisplay();
   const { x, y, width, height } = primaryDisplay.workArea;
   
-  // Use a reasonable centered window size (about 70% of work area)
-  const centeredWidth = Math.floor(width * 0.7);
-  const centeredHeight = Math.floor(height * 0.7);
+  // Determine which size to use for centering
+  let targetWidth: number;
+  let targetHeight: number;
   
-  const centerX = x + Math.floor((width - centeredWidth) / 2);
-  const centerY = y + Math.floor((height - centeredHeight) / 2);
+  if (userPreferredSize) {
+    // Always use user-preferred size if we have it
+    targetWidth = userPreferredSize.width;
+    targetHeight = userPreferredSize.height;
+  } else {
+    // No user-preferred size saved, use current dimensions or default
+    const currentBounds = focusedWindow.getBounds();
+    if (isWindowAutoSized) {
+      // Current size is auto-sized, use a reasonable default
+      targetWidth = Math.floor(width * 0.7);
+      targetHeight = Math.floor(height * 0.7);
+    } else {
+      // Use current user-set size
+      targetWidth = currentBounds.width;
+      targetHeight = currentBounds.height;
+      // Save this as user preferred size for future use
+      userPreferredSize = { width: targetWidth, height: targetHeight };
+    }
+  }
+  
+  // Calculate center position
+  const centerX = x + Math.floor((width - targetWidth) / 2);
+  const centerY = y + Math.floor((height - targetHeight) / 2);
   
   // Use setBounds with animate: true for smooth transition
   focusedWindow.setBounds({
     x: centerX,
     y: centerY,
-    width: centeredWidth,
-    height: centeredHeight
+    width: targetWidth,
+    height: targetHeight
   }, true);
+  
+  // Mark as not auto-sized since user explicitly centered
+  isWindowAutoSized = false;
 }
 
 function fillWindow(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   if (!focusedWindow) return;
+  
+  // Save user preferred size before auto-sizing (only if not already auto-sized)
+  if (!isWindowAutoSized) {
+    const currentBounds = focusedWindow.getBounds();
+    userPreferredSize = { 
+      width: currentBounds.width, 
+      height: currentBounds.height 
+    };
+  }
+  
   saveCurrentBounds();
   const { screen } = require('electron');
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -763,6 +818,9 @@ function fillWindow(): void {
   
   // Add margins for better visual appearance
   const gap = 8;
+  
+  // Mark as auto-sized BEFORE setBounds to prevent resize events from overwriting userPreferredSize
+  isWindowAutoSized = true;
   
   // Use setBounds with animate: true for smooth transition
   focusedWindow.setBounds({
@@ -776,6 +834,16 @@ function fillWindow(): void {
 function tileLeft(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   if (!focusedWindow) return;
+  
+  // Save user preferred size before auto-sizing (only if not already auto-sized)
+  if (!isWindowAutoSized && !userPreferredSize) {
+    const currentBounds = focusedWindow.getBounds();
+    userPreferredSize = { 
+      width: currentBounds.width, 
+      height: currentBounds.height 
+    };
+  }
+  
   saveCurrentBounds();
   const { screen } = require('electron');
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -785,6 +853,8 @@ function tileLeft(): void {
   const gap = 8;
   const windowWidth = Math.floor((width - gap * 3) / 2); // 3 gaps: left, middle, right
   
+  // Mark as auto-sized BEFORE setBounds to prevent resize events from overwriting userPreferredSize
+  isWindowAutoSized = true;
   
   focusedWindow.setBounds({
     x: x + gap,

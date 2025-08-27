@@ -51,7 +51,7 @@ export function TitleBar() {
       )}
       style={{
         gridTemplateColumns: sidebarCollapsed 
-          ? '120px 1fr 120px'  // traffic lights space | center | right space
+          ? '140px 1fr 120px'  // increased traffic lights space | center | right space
           : '312px 1fr 120px'  // sidebar + hamburger space | center | right space
       }}
     >
