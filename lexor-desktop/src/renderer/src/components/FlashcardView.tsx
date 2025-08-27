@@ -198,45 +198,7 @@ export function FlashcardView() {
     }
   };
 
-  // TEMPORARY: Fix database migration
-  const handleFixDatabase = async () => {
-    if (!window.confirm('This will fix flashcards that appear immediately as due. Continue?')) {
-      return;
-    }
-    
-    try {
-      const { service } = useFlashcardStore.getState();
-      const result = await service.fixExistingCardDueDates();
-      
-      if (result.success) {
-        setSuccessMessage(`Database fixed! ${result.message} ✓`);
-      } else {
-        setSuccessMessage(`Fix failed: ${result.message}`);
-      }
-    } catch (error) {
-      setSuccessMessage(`Fix failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
 
-  // TEMPORARY: Debug FSRS state
-  const handleDebugFSRS = async () => {
-    try {
-      const { service } = useFlashcardStore.getState();
-      const debug = await service.debugFSRSState();
-      
-      
-      const summary = debug.summary;
-      const nextDue = debug.nextDueCards[0];
-      const nextDueInfo = nextDue ? 
-        `Next card due in ${nextDue.minutes_until_due} minutes` : 
-        'No cards scheduled';
-      
-      const message = `DEBUG: ${summary.total_cards} cards, ${summary.total_reviews} reviews, ${summary.cards_due_now} due now. ${nextDueInfo}. Check console for details.`;
-      setSuccessMessage(message);
-    } catch (error) {
-      setSuccessMessage(`Debug failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
 
   // Auto-sync on component mount
   useEffect(() => {
@@ -445,35 +407,6 @@ export function FlashcardView() {
                         </div>
 
                         <div className="flex items-center space-x-3">
-                          {/* TEMPORARY: Debug Buttons */}
-                          <button
-                            onClick={handleDebugFSRS}
-                            className={clsx(
-                              'flex items-center space-x-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200',
-                              'border border-dashed hover:scale-105 active:scale-95',
-                              isDarkMode 
-                                ? 'border-blue-600 text-blue-400 hover:bg-blue-600 hover:bg-opacity-20' 
-                                : 'border-blue-500 text-blue-600 hover:bg-blue-50'
-                            )}
-                            title="Debug FSRS database state (check console)"
-                          >
-                            <span>🔍 Debug</span>
-                          </button>
-                          
-                          <button
-                            onClick={handleFixDatabase}
-                            className={clsx(
-                              'flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
-                              'border-2 border-dashed hover:scale-105 active:scale-95',
-                              isDarkMode 
-                                ? 'border-yellow-600 text-yellow-400 hover:bg-yellow-600 hover:bg-opacity-20' 
-                                : 'border-yellow-500 text-yellow-600 hover:bg-yellow-50'
-                            )}
-                            title="Fix cards that appear immediately as due (temporary migration)"
-                          >
-                            <span>🔧 Fix Database</span>
-                          </button>
-
                           <button
                             onClick={() => handleStartStudy(selectedDeck, false)}
                             className={clsx(
