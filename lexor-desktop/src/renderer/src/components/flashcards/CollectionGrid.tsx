@@ -322,7 +322,7 @@ export const CollectionGrid: React.FC<CollectionGridProps> = ({
       {/* Collection Grid */}
       <div className="flex-1 overflow-y-auto">
         {currentDecks.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pt-4 pb-6 px-3">
             {currentDecks.map((deck) => (
               <CollectionCard
                 key={deck.id}

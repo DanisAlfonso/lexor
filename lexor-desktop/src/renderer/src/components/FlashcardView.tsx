@@ -277,14 +277,14 @@ export function FlashcardView() {
   
   return (
     <div className={clsx(
-      'h-full flex flex-col',
+      'h-full flex flex-col min-w-[320px]',
       isDarkMode ? 'bg-kanagawa-ink3' : 'bg-gray-50'
     )}>
       {/* Main content area with smooth transitions */}
-      <div className="flex-1 flex relative overflow-hidden">
+      <div className="flex-1 flex relative overflow-hidden min-w-0">
         <div 
           className={clsx(
-            'absolute inset-0 flex transition-all duration-400 ease-in-out',
+            'absolute inset-0 flex transition-all duration-400 ease-in-out min-w-0',
             isTransitioning ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'
           )}
           style={{ 
@@ -296,7 +296,7 @@ export function FlashcardView() {
             <>
               {/* Sidebar with deck hierarchy */}
               <div className={clsx(
-                'w-80 border-r',
+                'w-56 sm:w-64 md:w-72 lg:w-80 border-r flex-shrink-0 min-w-0',
                 isDarkMode ? 'border-kanagawa-ink5' : 'border-gray-200'
               )}>
                 <DeckHierarchy
@@ -307,11 +307,11 @@ export function FlashcardView() {
               </div>
 
               {/* Classic view content */}
-              <div className="flex-1 flex flex-col">
+              <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
               {/* Error notification */}
               {error && (
                 <div className={clsx(
-                  'mx-6 mt-6 p-4 rounded-lg border-l-4 border-red-400',
+                  'mx-4 sm:mx-6 mt-4 sm:mt-6 p-4 rounded-lg border-l-4 border-red-400',
                   isDarkMode 
                     ? 'bg-red-900 bg-opacity-20 text-red-300' 
                     : 'bg-red-50 text-red-700'
@@ -323,7 +323,7 @@ export function FlashcardView() {
               {/* Completion message notification - positive styling */}
               {completionMessage && (
                 <div className={clsx(
-                  'mx-6 mt-6 p-4 rounded-lg border-l-4 border-green-400',
+                  'mx-4 sm:mx-6 mt-4 sm:mt-6 p-4 rounded-lg border-l-4 border-green-400',
                   isDarkMode 
                     ? 'bg-green-900 bg-opacity-20 text-green-300' 
                     : 'bg-green-50 text-green-700'
@@ -335,7 +335,7 @@ export function FlashcardView() {
               {/* Success notification */}
               {successMessage && (
                 <div className={clsx(
-                  'mx-6 mt-6 p-4 rounded-lg border-l-4 border-green-400',
+                  'mx-4 sm:mx-6 mt-4 sm:mt-6 p-4 rounded-lg border-l-4 border-green-400',
                   isDarkMode 
                     ? 'bg-green-900 bg-opacity-20 text-green-300' 
                     : 'bg-green-50 text-green-700'
@@ -345,7 +345,7 @@ export function FlashcardView() {
               )}
 
               {/* Main content */}
-              <div className="flex-1 p-6">
+              <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto">
                 {selectedDeck ? (
                   // Deck details view
                   <div className="max-w-4xl mx-auto">
@@ -426,45 +426,48 @@ export function FlashcardView() {
                   </div>
                 ) : (
                   // Welcome view
-                  <div className="max-w-2xl mx-auto text-center py-12">
-                    <DocumentTextIcon className={clsx(
-                      'mx-auto h-16 w-16 mb-6',
-                      isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'
-                    )} />
-                    <h2 className={clsx(
-                      'text-2xl font-semibold mb-4',
-                      isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
-                    )}>
-                      Welcome to Flashcards
-                    </h2>
-                    <p className={clsx(
-                      'mb-8',
-                      isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-600'
-                    )}>
-                      Create flashcards directly in your markdown files using the Flash notation, 
-                      or select a collection from the sidebar to start studying.
-                    </p>
-                    
-                    <div className={clsx(
-                      'text-left p-4 rounded-lg mb-8',
-                      isDarkMode ? 'bg-kanagawa-ink4' : 'bg-gray-100'
-                    )}>
-                      <h4 className={clsx(
-                        'font-semibold mb-2',
-                        isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+                  <div className="flex-1 flex items-center justify-center px-3 sm:px-6 py-4 sm:py-8 min-h-0 overflow-auto">
+                    <div className="w-full max-w-4xl text-center">
+                      <div className="mb-6 sm:mb-8">
+                        <DocumentTextIcon className={clsx(
+                          'mx-auto h-10 w-10 sm:h-12 sm:w-12 md:h-16 md:w-16 mb-3 sm:mb-4 md:mb-6',
+                          isDarkMode ? 'text-kanagawa-gray' : 'text-gray-400'
+                        )} />
+                        <h2 className={clsx(
+                          'text-lg sm:text-xl md:text-2xl lg:text-3xl font-semibold mb-2 sm:mb-3 md:mb-4 px-2',
+                          isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+                        )}>
+                          Welcome to Flashcards
+                        </h2>
+                        <p className={clsx(
+                          'text-xs sm:text-sm md:text-base lg:text-lg leading-relaxed mx-auto px-2 max-w-none sm:max-w-lg md:max-w-2xl lg:max-w-3xl',
+                          isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-600'
+                        )}>
+                          Create flashcards directly in your markdown files using the Flash notation, 
+                          or select a collection from the sidebar to start studying.
+                        </p>
+                      </div>
+                      <div className={clsx(
+                        'text-left p-3 sm:p-4 md:p-6 rounded-xl mx-auto max-w-none sm:max-w-lg md:max-w-xl lg:max-w-2xl',
+                        isDarkMode ? 'bg-kanagawa-ink4' : 'bg-gray-100'
                       )}>
-                        Flashcard Syntax:
-                      </h4>
-                      <pre className={clsx(
-                        'text-sm',
-                        isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
-                      )}>
+                        <h4 className={clsx(
+                          'font-semibold mb-2 sm:mb-3 text-xs sm:text-sm md:text-base',
+                          isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+                        )}>
+                          Flashcard Syntax:
+                        </h4>
+                        <pre className={clsx(
+                          'text-xs sm:text-sm leading-relaxed overflow-x-auto whitespace-pre-wrap break-words',
+                          isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                        )}>
 {`## Flash: What is the capital of France?
 ### Answer: Paris
 
 ## Flash: Explain photosynthesis
 ### Answer: The process where plants convert sunlight into energy`}
-                      </pre>
+                        </pre>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -477,7 +480,7 @@ export function FlashcardView() {
               {/* Error notification */}
               {error && (
                 <div className={clsx(
-                  'mx-6 mt-6 p-4 rounded-lg border-l-4 border-red-400',
+                  'mx-4 sm:mx-6 mt-4 sm:mt-6 p-4 rounded-lg border-l-4 border-red-400',
                   isDarkMode 
                     ? 'bg-red-900 bg-opacity-20 text-red-300' 
                     : 'bg-red-50 text-red-700'
@@ -489,7 +492,7 @@ export function FlashcardView() {
               {/* Completion message notification - positive styling */}
               {completionMessage && (
                 <div className={clsx(
-                  'mx-6 mt-6 p-4 rounded-lg border-l-4 border-green-400',
+                  'mx-4 sm:mx-6 mt-4 sm:mt-6 p-4 rounded-lg border-l-4 border-green-400',
                   isDarkMode 
                     ? 'bg-green-900 bg-opacity-20 text-green-300' 
                     : 'bg-green-50 text-green-700'
@@ -501,7 +504,7 @@ export function FlashcardView() {
               {/* Success notification */}
               {successMessage && (
                 <div className={clsx(
-                  'mx-6 mt-6 p-4 rounded-lg border-l-4 border-green-400',
+                  'mx-4 sm:mx-6 mt-4 sm:mt-6 p-4 rounded-lg border-l-4 border-green-400',
                   isDarkMode 
                     ? 'bg-green-900 bg-opacity-20 text-green-300' 
                     : 'bg-green-50 text-green-700'
