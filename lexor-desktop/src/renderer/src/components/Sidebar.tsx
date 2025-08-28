@@ -13,7 +13,7 @@ import { FolderBrowser } from './FolderBrowser';
 const navigationItems = [
   { id: 'editor' as ViewType, label: 'Editor', icon: DocumentTextIcon, path: '/editor' },
   { id: 'flashcards' as ViewType, label: 'Flashcards', icon: AcademicCapIcon, path: '/flashcards' },
-  { id: 'study' as ViewType, label: 'Study', icon: ChartBarIcon, path: '/study' },
+  { id: 'study' as ViewType, label: 'Analytics', icon: ChartBarIcon, path: '/study' },
   { id: 'settings' as ViewType, label: 'Settings', icon: Cog6ToothIcon, path: '/settings' },
 ];
 

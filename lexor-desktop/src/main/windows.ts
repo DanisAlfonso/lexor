@@ -98,6 +98,7 @@ export class WindowManager {
   }
 
 
+
   getWindowSettings() {
     return { ...this.windowSettings };
   }

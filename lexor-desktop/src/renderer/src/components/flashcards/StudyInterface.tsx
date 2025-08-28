@@ -66,9 +66,12 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
   const animationFrameRef = useRef<number>();
   const hasFlippedToBackRef = useRef(false);
   const [wasShowingAnswer, setWasShowingAnswer] = useState(false);
+  const showBackContentRef = useRef(false);
+  const isFlippedRef = useRef(false);
+  const isAnimatingRef = useRef(false);
 
   const monitorRotation = useCallback(() => {
-    if (!cardRef.current || !isAnimating) {
+    if (!cardRef.current || !isAnimatingRef.current) {
       console.log('Monitoring stopped - no card ref or not animating');
       return;
     }
@@ -79,9 +82,9 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
     
     // Log only every ~500ms
     if (Date.now() % 500 < 16) {
-      console.log('Current angle:', Math.round(currentAngle), 'isFlipped:', isFlipped, 'showBackContent:', showBackContent);
+      console.log('Current angle:', Math.round(currentAngle), 'isFlipped:', isFlippedRef.current, 'showBackContent:', showBackContentRef.current);
       
-      if (isFlipped) {
+      if (isFlippedRef.current) {
         // Forward animation (0° → 180°): Show what's visually displayed
         if (currentAngle < 90) {
           console.log('QUESTION: NORMAL');
@@ -92,14 +95,14 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
         // Reverse animation (180° → 0°): Show what's visually displayed
         if (currentAngle > 90) {
           // First 90° of reverse (180° → 90°): Show what content is actually visible
-          if (showBackContent) {
+          if (showBackContentRef.current) {
             console.log('ANSWER: NORMAL');
           } else {
             console.log('QUESTION: MIRRORED');
           }
         } else {
           // Remaining 90° of reverse (90° → 0°): Show what content is actually visible
-          if (showBackContent) {
+          if (showBackContentRef.current) {
             console.log('ANSWER: MIRRORED');
           } else {
             console.log('QUESTION: NORMAL');
@@ -109,31 +112,35 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
     }
     
     // Forward animation: switch to back content at 90°
-    if (isFlipped && currentAngle >= 90 && !showBackContent && !hasFlippedToBackRef.current) {
+    if (isFlippedRef.current && currentAngle >= 90 && !showBackContentRef.current && !hasFlippedToBackRef.current) {
       console.log('Forward: Switching to back content at angle:', currentAngle);
       hasFlippedToBackRef.current = true;
+      showBackContentRef.current = true;
       setShowBackContent(true);
     }
     
     // Reverse animation: switch from answer to question content at 90°
-    if (!isFlipped && currentAngle <= 90 && showBackContent && !hasFlippedToBackRef.current) {
+    if (!isFlippedRef.current && currentAngle <= 90 && showBackContentRef.current && !hasFlippedToBackRef.current) {
       console.log('Reverse: Switching to question content at angle:', currentAngle);
+      showBackContentRef.current = false;
       setShowBackContent(false);
       hasFlippedToBackRef.current = true;
     }
     
     // Stop when animation is complete
-    const isComplete = (isFlipped && currentAngle >= 179) || (!isFlipped && currentAngle <= 1);
+    const isComplete = (isFlippedRef.current && currentAngle >= 179) || (!isFlippedRef.current && currentAngle <= 1);
     
     if (isComplete) {
       console.log('Animation complete at angle:', currentAngle, 'stopping monitoring');
+      isAnimatingRef.current = false;
       setIsAnimating(false);
-      if (isFlipped) {
+      if (isFlippedRef.current) {
         // Forward animation completed, now showing answer
         setWasShowingAnswer(true);
-      } else if (!isFlipped) {
+      } else if (!isFlippedRef.current) {
         // Reverse animation completed, reset to question after a brief delay
         setTimeout(() => {
+          showBackContentRef.current = false;
           setShowBackContent(false);
           setWasShowingAnswer(false);
         }, 100);
@@ -145,12 +152,15 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
     } else {
       animationFrameRef.current = requestAnimationFrame(monitorRotation);
     }
-  }, [isAnimating, showBackContent, isFlipped]);
+  }, []);
 
   useEffect(() => {
     console.log('useEffect triggered - showAnswer:', showAnswer);
     if (showAnswer) {
       console.log('Starting forward animation (question to answer)');
+      isAnimatingRef.current = true;
+      isFlippedRef.current = true;
+      showBackContentRef.current = false;
       setIsAnimating(true);
       setIsFlipped(true);
       setShowBackContent(false); // Start with question, will switch to answer at 90°
@@ -160,6 +170,8 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
       if (wasShowingAnswer) {
         // This is a reverse animation from answer back to question
         console.log('Starting reverse animation monitoring (answer to question)');
+        isAnimatingRef.current = true;
+        isFlippedRef.current = false;
         setIsAnimating(true);
         setIsFlipped(false);
         // Keep showing answer content initially for logging
@@ -172,6 +184,9 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
       } else {
         // This is initial state or reset
         console.log('Resetting to question state');
+        isAnimatingRef.current = false;
+        isFlippedRef.current = false;
+        showBackContentRef.current = false;
         setIsAnimating(false);
         setIsFlipped(false);
         setShowBackContent(false);
@@ -191,7 +206,7 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
       console.log('Starting rotation monitoring for', isFlipped ? 'forward' : 'reverse', 'animation');
       monitorRotation();
     }
-  }, [isAnimating, isFlipped, monitorRotation]);
+  }, [isAnimating, isFlipped]);
 
   useEffect(() => {
     return () => {

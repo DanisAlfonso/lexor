@@ -660,7 +660,6 @@ if (typeof window !== 'undefined') {
       if (state.transparency !== 100) {
         window.electronAPI.window.setTransparency(state.transparency);
       }
-      
     }
   };
 
