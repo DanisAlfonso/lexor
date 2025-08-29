@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { join } from 'path';
 import { app } from 'electron';
 import { mkdir } from 'fs/promises';
+import { existsSync } from 'fs';
 
 export interface Deck {
   id?: number;
@@ -63,21 +64,13 @@ export class FlashcardDatabase {
     if (!FlashcardDatabase.instance) {
       try {
         const appDataPath = app.getPath('userData');
-        const dbDir = join(appDataPath, 'databases');
         
         console.log('Initializing database...');
         console.log('App data path:', appDataPath);
-        console.log('Database directory:', dbDir);
         
-        // Ensure database directory exists
-        await mkdir(dbDir, { recursive: true });
-        console.log('Database directory created/verified');
-        
-        const dbPath = join(dbDir, 'flashcards.db');
+        // Use the main app data directory directly instead of a subdirectory
+        const dbPath = join(appDataPath, 'flashcards.db');
         console.log('Database path:', dbPath);
-        
-        // Small delay to ensure directory is fully available
-        await new Promise(resolve => setTimeout(resolve, 100));
         
         FlashcardDatabase.instance = new FlashcardDatabase(dbPath);
         console.log('Database initialized successfully');
@@ -751,6 +744,16 @@ export class FlashcardDatabase {
   }
 
   public close(): void {
-    this.db.close();
+    console.log('💾 FlashcardDatabase.close() called');
+    try {
+      if (this.db) {
+        this.db.close();
+        console.log('✅ SQLite database connection closed successfully');
+      } else {
+        console.log('⚠️  Database was already null/undefined');
+      }
+    } catch (error) {
+      console.error('❌ Error closing SQLite database:', error);
+    }
   }
 }
