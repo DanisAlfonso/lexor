@@ -2,7 +2,7 @@ import React from 'react';
 import { useAppStore } from '../stores/appStore';
 import { useFlashcardStore } from '../stores/flashcardStore';
 import { clsx } from 'clsx';
-import { ViewColumnsIcon } from '@heroicons/react/24/outline';
+import { ArrowLongLeftIcon, ArrowLongRightIcon } from '@heroicons/react/24/outline';
 
 export function TitleBar() {
   const { currentDocument, isDocumentModified, theme, sidebarCollapsed, toggleSidebar, currentView } = useAppStore();
@@ -67,7 +67,11 @@ export function TitleBar() {
           )}
           style={{ WebkitAppRegion: 'no-drag' } as any}
         >
-          <ViewColumnsIcon className="h-5 w-5" />
+          {sidebarCollapsed ? (
+            <ArrowLongRightIcon className="h-5 w-5" />
+          ) : (
+            <ArrowLongLeftIcon className="h-5 w-5" />
+          )}
         </button>
       </div>
 
