@@ -27,42 +27,6 @@ const formatFontFamily = (fontFamily: string) => {
   return fontMap[fontFamily] || `"${fontFamily}", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace`;
 };
 
-// Create custom Kanagawa theme for CodeMirror
-const createKanagawaTheme = (isDark: boolean, isFocusMode: boolean, fontSize: number, lineHeight: number, fontFamily: string) => {
-  return EditorView.theme({
-    '&': {
-      color: isDark ? '#ff0000' : '#393836', // BRIGHT RED to test if dark mode works
-      backgroundColor: isDark ? '#000000' : '#f9fafb', // PURE BLACK to test if dark mode works
-      fontSize: `${fontSize}px`,
-      fontFamily: formatFontFamily(fontFamily),
-      height: '100%'
-    },
-    '.cm-content': {
-      padding: isFocusMode ? '80px 160px' : '40px 40px',
-      caretColor: isDark ? '#c4b28a' : '#393836', // cursor-color from palette
-      lineHeight: lineHeight.toString(),
-      minHeight: '100%'
-    },
-    '.cm-focused .cm-cursor': {
-      borderLeftColor: isDark ? '#c4b28a' : '#393836'
-    },
-    '.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-      backgroundColor: isDark ? '#363646' : '#c7d7e0', // selection-background, lotusBlue1 for light
-      color: isDark ? '#9e9b93' : '#393836' // selection-foreground
-    },
-    '.cm-editor.cm-focused': {
-      outline: 'none'
-    },
-    '.cm-scroller': {
-      overflow: 'auto',
-      lineHeight: lineHeight.toString()
-    },
-    '.cm-line': {
-      lineHeight: lineHeight.toString()
-    }
-  }, { dark: isDark });
-};
-
 // Markdown syntax highlighting theme with muted kanagawa-paper colors
 const createMarkdownHighlighting = (isDark: boolean) => {
   return EditorView.theme({
@@ -89,6 +53,7 @@ const createMarkdownHighlighting = (isDark: boolean) => {
     '.cm-em': { fontStyle: 'italic' }
   });
 };
+
 
 export function MarkdownEditor() {
   const {
@@ -283,7 +248,17 @@ export function MarkdownEditor() {
   // Determine if we should use dark mode
   const isDarkMode = theme === 'dark' || (theme === 'system' && systemTheme === 'dark');
   
-  
+  // Update CSS custom properties for selection styling
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDarkMode) {
+      root.style.setProperty('--editor-selection-bg', '#363646');
+      root.style.setProperty('--editor-selection-text', '#9e9b93');
+    } else {
+      root.style.setProperty('--editor-selection-bg', '#c7d7e0'); // Light blue-gray for light mode
+      root.style.setProperty('--editor-selection-text', '#393836'); // Dark gray text
+    }
+  }, [isDarkMode]);
 
   // Create extensions array
   const formattedFontFamily = formatFontFamily(fontFamily);
@@ -335,10 +310,6 @@ export function MarkdownEditor() {
         backgroundColor: 'transparent',
         borderLeftWidth: '1px',
         borderLeftStyle: 'solid'
-      },
-      '.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-        backgroundColor: isDarkMode ? '#363646' : '#c7d7e0',
-        color: isDarkMode ? '#9e9b93' : '#393836'
       },
       '.cm-focused': {
         backgroundColor: 'transparent'

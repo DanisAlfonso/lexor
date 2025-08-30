@@ -64,6 +64,17 @@
       @apply bg-primary-800 text-primary-100;
     }
   }
+
+  /* CodeMirror selection styles using CSS variables */
+  .cm-editor ::selection,
+  .cm-editor .cm-content ::selection,
+  .cm-editor .cm-scroller ::selection,
+  .cm-editor .cm-line ::selection,
+  .cm-selectionBackground {
+    background-color: var(--editor-selection-bg) !important;
+    color: var(--editor-selection-text) !important;
+  }
+
 }
 
 /* Custom components */
