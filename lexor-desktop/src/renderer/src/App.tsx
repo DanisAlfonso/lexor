@@ -20,6 +20,13 @@ function App() {
     autoOpenAppropriateDocument
   } = useAppStore();
   const [isLoading, setIsLoading] = useState(true);
+  const [systemIsDark, setSystemIsDark] = useState(() => {
+    // Only check system theme if we're in browser environment
+    if (typeof window !== 'undefined') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
 
   // Initialize the app
   useEffect(() => {
@@ -69,22 +76,41 @@ function App() {
     initializeApp();
   }, [isLibraryInitialized, initializeLexorLibrary, autoOpenAppropriateDocument]);
 
+  // Listen for OS theme changes
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleThemeChange = (e: MediaQueryListEvent) => {
+      setSystemIsDark(e.matches);
+    };
+
+    mediaQuery.addEventListener('change', handleThemeChange);
+    return () => mediaQuery.removeEventListener('change', handleThemeChange);
+  }, []);
+
   // Set up menu handlers
   useMenuHandlers();
 
+  // Calculate dark mode for loading screen too
+  const isDarkMode = theme === 'dark' || (theme === 'system' && systemIsDark);
+
   if (isLoading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-white dark:bg-gray-900">
+      <div className={clsx(
+        "h-screen w-screen flex items-center justify-center",
+        isDarkMode ? "bg-kanagawa-ink3 text-kanagawa-white" : "bg-gray-50 text-gray-900"
+      )}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading Lexor...</p>
+          <div className={clsx(
+            "animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4",
+            isDarkMode ? "border-kanagawa-oldwhite" : "border-primary-600"
+          )}></div>
+          <p className={clsx(
+            isDarkMode ? "text-kanagawa-oldwhite" : "text-gray-600"
+          )}>Loading Lexor...</p>
         </div>
       </div>
     );
   }
-
-  // Determine if we should use dark mode
-  const isDarkMode = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   return (
     <div className={clsx(
