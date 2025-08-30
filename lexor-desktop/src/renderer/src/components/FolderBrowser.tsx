@@ -1120,43 +1120,13 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
 
   return (
     <div>
-      {/* Library Header - Special styling when in library */}
-      {isCurrentFolderLibrary && (
-        <div className={clsx(
-          "px-3 py-2 border-b",
-          isDarkMode 
-            ? "border-emerald-800 bg-emerald-900/20" 
-            : "border-emerald-200 bg-emerald-50"
-        )}>
-          <div className="flex items-center">
-            <BookOpenIcon className={clsx(
-              "h-4 w-4 mr-2",
-              isDarkMode ? "text-emerald-400" : "text-emerald-600"
-            )} />
-            <span className={clsx(
-              "text-xs font-medium uppercase tracking-wide",
-              isDarkMode ? "text-emerald-400" : "text-emerald-700"
-            )}>
-              Sync Enabled
-            </span>
-            <div className={clsx(
-              "ml-2 h-2 w-2 rounded-full",
-              isDarkMode ? "bg-emerald-400" : "bg-emerald-500"
-            )} />
-          </div>
-        </div>
-      )}
 
       {/* Premium Breadcrumb Navigation */}
       <div className={clsx(
         "px-3 py-3 border-b",
-        isCurrentFolderLibrary
-          ? isDarkMode 
-            ? "border-emerald-800 bg-emerald-900/10" 
-            : "border-emerald-200 bg-emerald-25"
-          : isDarkMode 
-            ? "border-kanagawa-ink4 bg-kanagawa-ink2" 
-            : "border-gray-200 bg-gray-50"
+        isDarkMode 
+          ? "border-kanagawa-ink4 bg-kanagawa-ink2/50" 
+          : "border-gray-200 bg-gray-50/80"
       )}>
         <div className="flex items-center space-x-1 min-w-0">
           {breadcrumbs.map((crumb, index) => (
@@ -1170,24 +1140,24 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
               <button
                 onClick={() => navigateToFolder(crumb.path)}
                 className={clsx(
-                  'flex items-center px-2 py-1 text-sm rounded-md transition-all duration-200 min-w-0',
+                  'flex items-center px-3 py-2 text-sm transition-all duration-200 min-w-0',
                   index === breadcrumbs.length - 1 
-                    ? // Current folder - highlighted
+                    ? // Current folder - subtle highlight, not button-like
                       crumb.isLibrary
                         ? isDarkMode
-                          ? 'bg-emerald-600 text-white font-medium'
-                          : 'bg-emerald-600 text-white font-medium'
+                          ? 'text-yellow-300 font-semibold'
+                          : 'text-amber-700 font-semibold'
                         : isDarkMode
-                          ? 'bg-accent-blue text-white font-medium'
-                          : 'bg-blue-600 text-white font-medium'
+                          ? 'text-accent-blue font-semibold'
+                          : 'text-blue-700 font-semibold'
                     : // Navigable parent folders
                       crumb.isLibrary
                         ? isDarkMode
-                          ? 'text-emerald-400 hover:bg-kanagawa-ink4 font-medium'
-                          : 'text-emerald-600 hover:bg-emerald-50 font-medium'
+                          ? 'text-yellow-400/70 hover:text-yellow-300 hover:bg-kanagawa-ink4/50 font-medium rounded-md'
+                          : 'text-amber-600 hover:text-amber-700 hover:bg-amber-50 font-medium rounded-md'
                         : isDarkMode
-                          ? 'text-kanagawa-oldwhite hover:bg-kanagawa-ink4 font-medium'
-                          : 'text-gray-700 hover:bg-gray-200 font-medium'
+                          ? 'text-kanagawa-oldwhite/70 hover:text-kanagawa-oldwhite hover:bg-kanagawa-ink4/50 font-medium rounded-md'
+                          : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100 font-medium rounded-md'
                 )}
                 disabled={index === breadcrumbs.length - 1}
               >
@@ -1196,10 +1166,10 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
                     <BookOpenIcon className={clsx(
                       "h-4 w-4 mr-1.5 flex-shrink-0",
                       index === breadcrumbs.length - 1 
-                        ? "text-white" 
+                        ? isDarkMode ? "text-yellow-300" : "text-amber-700"
                         : isDarkMode 
-                          ? "text-emerald-400" 
-                          : "text-emerald-600"
+                          ? "text-yellow-400/70" 
+                          : "text-amber-600"
                     )} />
                   ) : (
                     <HomeIcon className={clsx(
