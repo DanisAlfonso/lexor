@@ -65,6 +65,12 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
   const [newFolderParentPath, setNewFolderParentPath] = useState<string>('');
   const newFolderInputRef = useRef<HTMLInputElement>(null);
 
+  // New Document dialog state
+  const [showNewDocumentDialog, setShowNewDocumentDialog] = useState(false);
+  const [newDocumentName, setNewDocumentName] = useState('');
+  const [newDocumentParentPath, setNewDocumentParentPath] = useState<string>('');
+  const newDocumentInputRef = useRef<HTMLInputElement>(null);
+
   // Drag & Drop state
   const [draggedItem, setDraggedItem] = useState<FileItem | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -413,6 +419,69 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
   const handleCreateFolderCancel = () => {
     setShowNewFolderDialog(false);
     setNewFolderName('');
+  };
+
+  // New Document handlers
+  const handleCreateDocument = (parentPath?: string) => {
+    closeContextMenu();
+    
+    const targetPath = parentPath || currentFolder;
+    if (!targetPath) return;
+    
+    // Show the dialog
+    setNewDocumentParentPath(targetPath);
+    setNewDocumentName('');
+    setShowNewDocumentDialog(true);
+    
+    // Focus the input after dialog opens
+    setTimeout(() => newDocumentInputRef.current?.focus(), 100);
+  };
+
+  const handleCreateDocumentConfirm = async () => {
+    if (!newDocumentName.trim()) return;
+    
+    try {
+      // Add .md extension if not present
+      const fileName = newDocumentName.trim().endsWith('.md') 
+        ? newDocumentName.trim() 
+        : `${newDocumentName.trim()}.md`;
+        
+      const initialContent = `# ${newDocumentName.trim()}\n\n`;
+      
+      const result = await window.electronAPI?.file?.createFile(newDocumentParentPath, fileName, initialContent);
+      if (result?.success) {
+        // Close dialog
+        setShowNewDocumentDialog(false);
+        setNewDocumentName('');
+        
+        // Refresh folder contents using unified system
+        if (isTreeView) {
+          await loadTreeData(currentFolder!);
+        } else {
+          await loadFolderContents(currentFolder!);
+        }
+        
+        // Trigger tree view refresh
+        window.dispatchEvent(new CustomEvent('refreshFolderView'));
+        
+        // Optionally open the newly created file
+        if (result.filePath && onFileSelect) {
+          const content = await window.electronAPI?.file?.readFile(result.filePath);
+          setDocumentContent(content || initialContent);
+          setCurrentDocument(result.filePath);
+          setDocumentModified(false);
+          onFileSelect(result.filePath);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create document:', error);
+      alert('Failed to create document');
+    }
+  };
+
+  const handleCreateDocumentCancel = () => {
+    setShowNewDocumentDialog(false);
+    setNewDocumentName('');
   };
 
   // Drag & Drop handlers
@@ -1250,6 +1319,19 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
                 New Folder
               </button>
               
+              <button
+                onClick={() => handleCreateDocument(contextMenu.item!.path)}
+                className={clsx(
+                  'w-full flex items-center px-3 py-2 text-sm transition-colors text-left',
+                  isDarkMode
+                    ? 'text-kanagawa-oldwhite hover:bg-kanagawa-ink5'
+                    : 'text-gray-700 hover:bg-gray-50'
+                )}
+              >
+                <PlusIcon className="h-4 w-4 mr-3" />
+                New Document
+              </button>
+              
               <div className={clsx(
                 'my-1 h-px',
                 isDarkMode ? 'bg-kanagawa-ink5' : 'bg-gray-200'
@@ -1371,6 +1453,87 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
                 className={clsx(
                   'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
                   !newFolderName.trim()
+                    ? isDarkMode
+                      ? 'bg-kanagawa-ink5 text-kanagawa-gray cursor-not-allowed'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : isDarkMode
+                      ? 'bg-accent-blue hover:bg-blue-600 text-white shadow-lg'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'
+                )}
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Document Dialog */}
+      {showNewDocumentDialog && (
+        <div className={clsx(
+          "fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm",
+          isDarkMode ? "bg-black/50" : "bg-black/30"
+        )}>
+          <div className={clsx(
+            'rounded-xl shadow-2xl p-6 w-96 max-w-[90vw] mx-4 border',
+            isDarkMode 
+              ? 'bg-kanagawa-ink3 text-kanagawa-oldwhite border-kanagawa-ink5' 
+              : 'bg-white text-gray-900 border-gray-200'
+          )}>
+            <h3 className={clsx(
+              'text-lg font-semibold mb-4',
+              isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-900'
+            )}>
+              New Document
+            </h3>
+            
+            <div className="mb-6">
+              <label className={clsx(
+                'block text-sm font-medium mb-2',
+                isDarkMode ? 'text-kanagawa-gray' : 'text-gray-700'
+              )}>
+                Document name:
+              </label>
+              <input
+                ref={newDocumentInputRef}
+                type="text"
+                value={newDocumentName}
+                onChange={(e) => setNewDocumentName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleCreateDocumentConfirm();
+                  } else if (e.key === 'Escape') {
+                    handleCreateDocumentCancel();
+                  }
+                }}
+                className={clsx(
+                  'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200',
+                  isDarkMode 
+                    ? 'bg-kanagawa-ink4 border-kanagawa-ink5 text-kanagawa-oldwhite placeholder-kanagawa-gray focus:ring-accent-blue focus:border-accent-blue' 
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-blue-500 focus:border-blue-500'
+                )}
+                placeholder="Enter document name (without .md)"
+              />
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleCreateDocumentCancel}
+                className={clsx(
+                  'px-4 py-2 text-sm font-medium rounded-lg transition-colors border',
+                  isDarkMode
+                    ? 'text-kanagawa-gray hover:text-kanagawa-oldwhite hover:bg-kanagawa-ink4 border-kanagawa-ink5'
+                    : 'text-gray-700 hover:bg-gray-50 border-gray-300 hover:border-gray-400'
+                )}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateDocumentConfirm}
+                disabled={!newDocumentName.trim()}
+                className={clsx(
+                  'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+                  !newDocumentName.trim()
                     ? isDarkMode
                       ? 'bg-kanagawa-ink5 text-kanagawa-gray cursor-not-allowed'
                       : 'bg-gray-300 text-gray-500 cursor-not-allowed'

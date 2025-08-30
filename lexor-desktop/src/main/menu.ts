@@ -404,8 +404,6 @@ export function createMenu(): Menu {
           click: () => returnToPreviousSize()
         },
         { type: 'separator' },
-        { label: 'Remove Window from Set', click: () => removeFromSet() },
-        { type: 'separator' },
         { label: 'Close', role: 'close' },
         ...(isMac ? [
           { type: 'separator' as const },
@@ -1061,15 +1059,3 @@ function returnToPreviousSize(): void {
   focusedWindow.setBounds(previousWindowBounds);
 }
 
-function removeFromSet(): void {
-  const focusedWindow = BrowserWindow.getFocusedWindow();
-  if (!focusedWindow) return;
-  
-  dialog.showMessageBox(focusedWindow, {
-    type: 'info',
-    title: 'Feature Not Available',
-    message: 'Remove Window from Set',
-    detail: 'This feature is not currently implemented.',
-    buttons: ['OK']
-  });
-}

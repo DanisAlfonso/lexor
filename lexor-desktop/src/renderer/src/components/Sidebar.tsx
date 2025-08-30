@@ -75,7 +75,6 @@ export function Sidebar() {
         
         // Navigate to editor view
         setCurrentView('editor');
-        navigate('/editor');
       }
     } catch (error) {
       console.error('Failed to open file:', error);
