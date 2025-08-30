@@ -6,6 +6,7 @@ import { Extension } from '@codemirror/state';
 import { keymap } from '@codemirror/view';
 import { useAppStore } from '../stores/appStore';
 import { conditionalLivePreview, toggleLivePreview } from '../extensions/livePreview';
+import { SplitScreenEditor } from './SplitScreenEditor';
 import { clsx } from 'clsx';
 
 // Helper function to format font family with proper quotes and fallbacks
@@ -110,8 +111,6 @@ export function MarkdownEditor() {
 
 
   const editorRef = useRef<any>(null);
-  const rightEditorRef = useRef<any>(null);
-  const [isDragging, setIsDragging] = useState(false);
 
   // State for system theme detection
   const [systemTheme, setSystemTheme] = useState(
@@ -217,33 +216,6 @@ export function MarkdownEditor() {
     return () => clearTimeout(timer);
   }, [focusedPane, isSplitScreenMode]);
 
-  // Split pane resize logic
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!isSplitScreenMode) return;
-    
-    setIsDragging(true);
-    e.preventDefault();
-    
-    const container = e.currentTarget.parentElement;
-    if (!container) return;
-    
-    const containerRect = container.getBoundingClientRect();
-    
-    const handleMouseMove = (e: MouseEvent) => {
-      const x = e.clientX - containerRect.left;
-      const newRatio = x / containerRect.width;
-      setSplitRatio(newRatio);
-    };
-    
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
 
   // Determine if we should use dark mode
   const isDarkMode = theme === 'dark' || (theme === 'system' && systemTheme === 'dark');
@@ -369,11 +341,6 @@ export function MarkdownEditor() {
     }, { dark: isDarkMode })
   ];
 
-  // Helper function to get document title for pane header
-  const getDocumentTitle = (docPath: string | null) => {
-    if (!docPath) return 'Untitled';
-    return docPath.split('/').pop() || 'Untitled';
-  };
 
   // Helper function to create editor component
   const createEditor = (
@@ -414,132 +381,42 @@ export function MarkdownEditor() {
 
   if (isSplitScreenMode) {
     return (
-      <div className="h-full flex">
-        {/* Left Pane */}
-        <div 
-          className="relative flex flex-col"
-          style={{ 
-            width: `${splitRatio * 100}%`,
-            minWidth: '200px'
-          }}
-        >
-          {/* Left Pane Header */}
-          <div className={clsx(
-            'flex items-center justify-between px-4 py-2 text-sm font-medium',
-            focusedPane === 'left' 
-              ? isDarkMode ? 'bg-kanagawa-ink4 text-kanagawa-white' : 'bg-blue-50 text-blue-900'
-              : isDarkMode ? 'bg-kanagawa-ink2 text-kanagawa-gray' : 'bg-gray-50 text-gray-600'
-          )}
-          style={{
-            borderBottom: 'none',
-            outline: 'none'
-          }}>
-            <span className="truncate">{getDocumentTitle(currentDocument)}</span>
-            <div className="flex items-center space-x-2">
-              {focusedPane === 'left' && (
-                <div className={clsx(
-                  'h-2 w-2 rounded-full',
-                  isDarkMode ? 'bg-accent-blue' : 'bg-blue-500'
-                )} />
-              )}
-            </div>
-          </div>
-          
-          {/* Left Editor */}
-          <div 
-            className="flex-1 editor-container flex justify-center"
-            style={{
-              backgroundColor: isDarkMode ? '#1F1F28' : '#f9fafb'
-            }}
-          >
-            <div 
-              className="h-full w-full max-w-4xl"
-              style={{ 
-                overflow: 'visible',
-                position: 'relative'
-              }}
-            >
-              {createEditor(
-                documentContent,
-                handleLeftEditorChange,
-                handleLeftEditorFocus,
-                editorRef,
-                focusedPane === 'left'
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Split Divider - Very subtle */}
-        <div
-          className={clsx(
-            'w-px cursor-col-resize flex items-center justify-center group hover:bg-accent-blue/10 transition-all duration-200',
-            isDragging && 'bg-accent-blue/20 w-0.5',
-            isDarkMode ? 'bg-kanagawa-ink4/30' : 'bg-gray-300/40'
-          )}
-          onMouseDown={handleMouseDown}
-        >
-          <div className={clsx(
-            'w-px h-4 rounded-full transition-all opacity-0 group-hover:opacity-100 group-hover:h-12',
-            isDarkMode ? 'bg-accent-blue/60' : 'bg-blue-400/60'
-          )} />
-        </div>
-
-        {/* Right Pane */}
-        <div 
-          className="relative flex flex-col"
-          style={{ 
-            width: `${(1 - splitRatio) * 100}%`,
-            minWidth: '200px'
-          }}
-        >
-          {/* Right Pane Header */}
-          <div className={clsx(
-            'flex items-center justify-between px-4 py-2 text-sm font-medium',
-            focusedPane === 'right' 
-              ? isDarkMode ? 'bg-kanagawa-ink4 text-kanagawa-white' : 'bg-blue-50 text-blue-900'
-              : isDarkMode ? 'bg-kanagawa-ink2 text-kanagawa-gray' : 'bg-gray-50 text-gray-600'
-          )}
-          style={{
-            borderBottom: 'none',
-            outline: 'none'
-          }}>
-            <span className="truncate">{getDocumentTitle(rightPaneDocument)}</span>
-            <div className="flex items-center space-x-2">
-              {focusedPane === 'right' && (
-                <div className={clsx(
-                  'h-2 w-2 rounded-full',
-                  isDarkMode ? 'bg-accent-blue' : 'bg-blue-500'
-                )} />
-              )}
-            </div>
-          </div>
-          
-          {/* Right Editor */}
-          <div 
-            className="flex-1 editor-container flex justify-center"
-            style={{
-              backgroundColor: isDarkMode ? '#1F1F28' : '#f9fafb'
-            }}
-          >
-            <div 
-              className="h-full w-full max-w-4xl"
-              style={{ 
-                overflow: 'visible',
-                position: 'relative'
-              }}
-            >
-              {createEditor(
-                rightPaneContent,
-                handleRightEditorChange,
-                handleRightEditorFocus,
-                rightEditorRef,
-                focusedPane === 'right'
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      <SplitScreenEditor
+        leftValue={documentContent}
+        rightValue={rightPaneContent}
+        onLeftChange={handleLeftEditorChange}
+        onRightChange={handleRightEditorChange}
+        focusedPane={focusedPane}
+        onLeftFocus={handleLeftEditorFocus}
+        onRightFocus={handleRightEditorFocus}
+        splitRatio={splitRatio}
+        setSplitRatio={setSplitRatio}
+        leftDocument={currentDocument}
+        rightDocument={rightPaneDocument}
+        extensions={extensions}
+        basicSetup={{
+          lineNumbers: false,
+          foldGutter: false,
+          dropCursor: false,
+          allowMultipleSelections: false,
+          indentOnInput: true,
+          bracketMatching: true,
+          closeBrackets: true,
+          autocompletion: true,
+          highlightSelectionMatches: false,
+          searchKeymap: true,
+          rectangularSelection: false,
+          crosshairCursor: false
+        }}
+        editorStyle={{
+          height: '100%',
+          fontSize: finalFontSize,
+          fontFamily: formattedFontFamily
+        }}
+        isDarkMode={isDarkMode}
+        finalFontSize={finalFontSize}
+        formattedFontFamily={formattedFontFamily}
+      />
     );
   }
 
