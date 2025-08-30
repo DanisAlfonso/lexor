@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { EditorView } from '@codemirror/view';
@@ -147,7 +146,6 @@ export function MarkdownEditor() {
 
   const editorRef = useRef<any>(null);
   const rightEditorRef = useRef<any>(null);
-  const location = useLocation();
   const [isDragging, setIsDragging] = useState(false);
 
   // State for system theme detection
@@ -177,18 +175,16 @@ export function MarkdownEditor() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Auto-focus the editor when navigating to editor route
+  // Auto-focus the editor when component mounts or becomes active
   useEffect(() => {
-    if (location.pathname === '/editor' || location.pathname === '/') {
-      const timer = setTimeout(() => {
-        if (editorRef.current?.view) {
-          editorRef.current.view.focus();
-        }
-      }, 100);
+    const timer = setTimeout(() => {
+      if (editorRef.current?.view) {
+        editorRef.current.view.focus();
+      }
+    }, 100);
 
-      return () => clearTimeout(timer);
-    }
-  }, [location.pathname]);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Listen for focus editor events from the app store
   useEffect(() => {

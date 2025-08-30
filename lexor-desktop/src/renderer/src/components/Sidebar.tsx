@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore, ViewType } from '../stores/appStore';
 import { 
   DocumentTextIcon, 
@@ -11,15 +10,16 @@ import { clsx } from 'clsx';
 import { FolderBrowser } from './FolderBrowser';
 
 const navigationItems = [
-  { id: 'editor' as ViewType, label: 'Editor', icon: DocumentTextIcon, path: '/editor' },
-  { id: 'flashcards' as ViewType, label: 'Flashcards', icon: AcademicCapIcon, path: '/flashcards' },
-  { id: 'study' as ViewType, label: 'Analytics', icon: ChartBarIcon, path: '/study' },
-  { id: 'settings' as ViewType, label: 'Settings', icon: Cog6ToothIcon, path: '/settings' },
+  { id: 'editor' as ViewType, label: 'Editor', icon: DocumentTextIcon },
+  { id: 'flashcards' as ViewType, label: 'Flashcards', icon: AcademicCapIcon },
+  { id: 'study' as ViewType, label: 'Analytics', icon: ChartBarIcon },
+  { id: 'settings' as ViewType, label: 'Settings', icon: Cog6ToothIcon },
 ];
 
 export function Sidebar() {
   const { 
     sidebarCollapsed, 
+    currentView,
     setCurrentView, 
     toggleSidebar, 
     theme,
@@ -29,12 +29,9 @@ export function Sidebar() {
     currentFolder,
     setLivePreviewEnabled
   } = useAppStore();
-  const navigate = useNavigate();
-  const location = useLocation();
   
   const handleNavigation = (item: typeof navigationItems[0]) => {
     setCurrentView(item.id);
-    navigate(item.path);
   };
 
   const handleFileSelect = async (filePath: string) => {
@@ -106,7 +103,7 @@ export function Sidebar() {
         <ul className="space-y-1">
           {navigationItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.path;
+            const isActive = currentView === item.id;
             
             return (
               <li key={item.id}>

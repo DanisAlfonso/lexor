@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { TitleBar } from './components/TitleBar';
 import { MarkdownEditor } from './components/MarkdownEditor';
@@ -88,35 +87,30 @@ function App() {
   const isDarkMode = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   return (
-    <Router>
-      <div className={clsx(
-        "h-screen w-screen flex flex-col overflow-hidden",
-        isDarkMode ? "bg-kanagawa-ink3 text-kanagawa-white" : "bg-gray-50 text-gray-900"
-      )}>
-        {/* Custom title bar for macOS - hidden in focus mode */}
-        {!isFocusMode && <TitleBar />}
+    <div className={clsx(
+      "h-screen w-screen flex flex-col overflow-hidden",
+      isDarkMode ? "bg-kanagawa-ink3 text-kanagawa-white" : "bg-gray-50 text-gray-900"
+    )}>
+      {/* Custom title bar for macOS - hidden in focus mode */}
+      {!isFocusMode && <TitleBar />}
+      
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar - hidden in focus mode */}
+        {!isFocusMode && <Sidebar />}
         
-        <div className="flex flex-1 overflow-hidden">
-          {/* Sidebar - hidden in focus mode */}
-          {!isFocusMode && <Sidebar />}
-          
-          {/* Main content area */}
-          <div className={clsx(
-            'flex-1 flex flex-col transition-all duration-300',
-            !isFocusMode && (sidebarCollapsed ? 'ml-0' : 'ml-64'),
-            isFocusMode && 'ml-0' // Full width in focus mode
-          )}>
-            <Routes>
-              <Route path="/" element={<MarkdownEditor />} />
-              <Route path="/editor" element={<MarkdownEditor />} />
-              <Route path="/flashcards" element={<FlashcardView />} />
-              <Route path="/study" element={<StudySession />} />
-              <Route path="/settings" element={<Settings />} />
-            </Routes>
-          </div>
+        {/* Main content area */}
+        <div className={clsx(
+          'flex-1 flex flex-col transition-all duration-300',
+          !isFocusMode && (sidebarCollapsed ? 'ml-0' : 'ml-64'),
+          isFocusMode && 'ml-0' // Full width in focus mode
+        )}>
+          {currentView === 'editor' && <MarkdownEditor />}
+          {currentView === 'flashcards' && <FlashcardView />}
+          {currentView === 'study' && <StudySession />}
+          {currentView === 'settings' && <Settings />}
         </div>
       </div>
-    </Router>
+    </div>
   );
 }
 
