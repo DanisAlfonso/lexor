@@ -221,6 +221,34 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
     onShowAnswer();
   };
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Check if user is selecting text
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) {
+      // User is selecting text, don't flip the card
+      return;
+    }
+    
+    // Check if this was a drag operation (text selection attempt)
+    const target = e.target as HTMLElement;
+    if (target.closest('[contenteditable]') || target.closest('input') || target.closest('textarea')) {
+      // Don't flip if clicking on editable content
+      return;
+    }
+    
+    // Only flip if the user isn't in the middle of selecting text
+    // We check this by seeing if there's a current selection range
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      if (!range.collapsed) {
+        // There's an active selection, don't flip
+        return;
+      }
+    }
+    
+    handleShowAnswer();
+  };
+
   return (
     <div className="flex flex-col items-center justify-center h-full p-4 min-h-0">
       {/* Progress indicator */}
@@ -270,7 +298,7 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
         <div
           ref={cardRef}
           className={clsx(
-            'relative w-full h-full rounded-2xl cursor-pointer',
+            'relative w-full h-full rounded-2xl',
             isFlipped && 'rotate-y-180'
           )}
           style={{ 
@@ -282,7 +310,7 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
             minHeight: 'min(60vh, 400px)',
             maxHeight: 'min(80vh, 800px)'
           }}
-          onClick={handleShowAnswer}
+          onClick={handleCardClick}
         >
           {/* Front of card - only render when not flipped */}
           {!showBackContent && (console.log('Rendering FRONT content') || (
@@ -305,7 +333,7 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
                   content={card.front}
                   isDarkMode={isDarkMode}
                   className={clsx(
-                    'text-lg font-medium leading-relaxed',
+                    'text-lg font-medium leading-relaxed select-text',
                     isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
                   )}
                 />
@@ -338,7 +366,7 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
                   content={card.back}
                   isDarkMode={isDarkMode}
                   className={clsx(
-                    'text-lg font-medium leading-relaxed',
+                    'text-lg font-medium leading-relaxed select-text',
                     isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
                   )}
                 />

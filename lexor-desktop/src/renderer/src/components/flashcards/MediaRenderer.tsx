@@ -513,6 +513,7 @@ export const MediaRenderer: React.FC<MediaRendererProps> = ({ content, isDarkMod
         return (
           <span
             key={`text-${index}`}
+            className="select-text"
             dangerouslySetInnerHTML={{
               __html: part.replace(/\n/g, '<br />')
             }}
