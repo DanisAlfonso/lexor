@@ -6,7 +6,8 @@ import { Extension } from '@codemirror/state';
 import { keymap } from '@codemirror/view';
 import { useAppStore } from '../stores/appStore';
 import { conditionalLivePreview, toggleLivePreview } from '../extensions/livePreview';
-import { SplitScreenEditor } from './SplitScreenEditor';
+import { SplitScreenEditor, SplitScreenEditorRef } from './SplitScreenEditor';
+import { SinglePaneEditor, SinglePaneEditorRef } from './SinglePaneEditor';
 import { clsx } from 'clsx';
 
 // Helper function to format font family with proper quotes and fallbacks
@@ -76,6 +77,7 @@ export function MarkdownEditor() {
     setSplitRatio,
     currentDocument,
     rightPaneDocument,
+    selectedItem,
     // Scrollbar preference
     showScrollbar,
     // Live preview state
@@ -110,7 +112,8 @@ export function MarkdownEditor() {
   }, [isLivePreviewEnabled]);
 
 
-  const editorRef = useRef<any>(null);
+  const singleEditorRef = useRef<SinglePaneEditorRef>(null);
+  const splitEditorRef = useRef<SplitScreenEditorRef>(null);
 
   // State for system theme detection
   const [systemTheme, setSystemTheme] = useState(
@@ -131,40 +134,53 @@ export function MarkdownEditor() {
   // Auto-focus the editor when component mounts
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (editorRef.current?.view) {
-        editorRef.current.view.focus();
+      if (isSplitScreenMode) {
+        splitEditorRef.current?.focus(focusedPane);
+      } else {
+        singleEditorRef.current?.focus();
       }
     }, 100);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [isSplitScreenMode, focusedPane]);
 
-  // Auto-focus the editor when component mounts or becomes active
+  // Auto-focus when a new document is selected from sidebar
   useEffect(() => {
+    if (!currentDocument) return;
+    
     const timer = setTimeout(() => {
-      if (editorRef.current?.view) {
-        editorRef.current.view.focus();
+      if (isSplitScreenMode) {
+        splitEditorRef.current?.focus(focusedPane);
+      } else {
+        singleEditorRef.current?.focus();
       }
-    }, 100);
+    }, 150); // Slightly longer delay for document loading
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [currentDocument, isSplitScreenMode, focusedPane]);
+
+  // Auto-focus when the same file is selected again from sidebar
+  useEffect(() => {
+    if (!selectedItem || selectedItem.type !== 'file') return;
+    
+    const timer = setTimeout(() => {
+      if (isSplitScreenMode) {
+        splitEditorRef.current?.focus(focusedPane);
+      } else {
+        singleEditorRef.current?.focus();
+      }
+    }, 100); // Slightly faster since file is already loaded
+
+    return () => clearTimeout(timer);
+  }, [selectedItem, isSplitScreenMode, focusedPane]);
 
   // Listen for focus editor events from the app store
   useEffect(() => {
     const handleFocusEditor = () => {
       if (isSplitScreenMode) {
-        // In split screen mode, focus the active pane
-        if (focusedPane === 'right' && rightEditorRef.current?.view) {
-          rightEditorRef.current.view.focus();
-        } else if (editorRef.current?.view) {
-          editorRef.current.view.focus();
-        }
+        splitEditorRef.current?.focus(focusedPane);
       } else {
-        // In single pane mode, focus the main editor
-        if (editorRef.current?.view) {
-          editorRef.current.view.focus();
-        }
+        singleEditorRef.current?.focus();
       }
     };
 
@@ -206,11 +222,7 @@ export function MarkdownEditor() {
     if (!isSplitScreenMode) return;
     
     const timer = setTimeout(() => {
-      if (focusedPane === 'left' && editorRef.current?.view) {
-        editorRef.current.view.focus();
-      } else if (focusedPane === 'right' && rightEditorRef.current?.view) {
-        rightEditorRef.current.view.focus();
-      }
+      splitEditorRef.current?.focus(focusedPane);
     }, 50); // Small delay to ensure the focus change has been processed
 
     return () => clearTimeout(timer);
@@ -342,46 +354,11 @@ export function MarkdownEditor() {
   ];
 
 
-  // Helper function to create editor component
-  const createEditor = (
-    value: string,
-    onChange: (value: string) => void,
-    onFocus: () => void,
-    ref: React.MutableRefObject<any>,
-    isActive: boolean
-  ) => (
-    <CodeMirror
-      ref={ref}
-      value={value}
-      onChange={onChange}
-      onFocus={onFocus}
-      extensions={extensions}
-      basicSetup={{
-        lineNumbers: false,
-        foldGutter: false,
-        dropCursor: false,
-        allowMultipleSelections: false,
-        indentOnInput: true,
-        bracketMatching: true,
-        closeBrackets: true,
-        autocompletion: true,
-        highlightSelectionMatches: false,
-        searchKeymap: true,
-        rectangularSelection: false,
-        crosshairCursor: false
-      }}
-      style={{
-        height: '100%',
-        fontSize: finalFontSize,
-        fontFamily: formattedFontFamily,
-        opacity: isActive ? 1 : 0.8
-      }}
-    />
-  );
 
   if (isSplitScreenMode) {
     return (
       <SplitScreenEditor
+        ref={splitEditorRef}
         leftValue={documentContent}
         rightValue={rightPaneContent}
         onLeftChange={handleLeftEditorChange}
@@ -422,53 +399,29 @@ export function MarkdownEditor() {
 
   // Single pane mode (existing behavior)
   return (
-    <div className="h-full flex">
-      {/* Editor pane */}
-      <div className={clsx(
-        'flex-1 relative',
-        isFocusMode && 'focus-mode'
-      )}>
-        <div 
-          className="h-full editor-container flex justify-center"
-          style={{
-            backgroundColor: isDarkMode ? '#1F1F28' : '#f9fafb'
-          }}
-        >
-          <div 
-            className="h-full w-full max-w-4xl"
-            style={{ 
-              overflow: 'visible',
-              position: 'relative'
-            }}
-          >
-            <CodeMirror
-              ref={editorRef}
-              value={documentContent}
-              onChange={handleLeftEditorChange}
-              extensions={extensions}
-              basicSetup={{
-                lineNumbers: false,
-                foldGutter: false,
-                dropCursor: false,
-                allowMultipleSelections: false,
-                indentOnInput: true,
-                bracketMatching: true,
-                closeBrackets: true,
-                autocompletion: true,
-                highlightSelectionMatches: false,
-                searchKeymap: true,
-                rectangularSelection: false,
-                crosshairCursor: false
-              }}
-              style={{
-                height: '100%',
-                fontSize: finalFontSize,
-                fontFamily: formattedFontFamily
-              }}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
+    <SinglePaneEditor
+      ref={singleEditorRef}
+      value={documentContent}
+      onChange={handleLeftEditorChange}
+      extensions={extensions}
+      basicSetup={{
+        lineNumbers: false,
+        foldGutter: false,
+        dropCursor: false,
+        allowMultipleSelections: false,
+        indentOnInput: true,
+        bracketMatching: true,
+        closeBrackets: true,
+        autocompletion: true,
+        highlightSelectionMatches: false,
+        searchKeymap: true,
+        rectangularSelection: false,
+        crosshairCursor: false
+      }}
+      isDarkMode={isDarkMode}
+      isFocusMode={isFocusMode}
+      finalFontSize={finalFontSize}
+      formattedFontFamily={formattedFontFamily}
+    />
   );
 }

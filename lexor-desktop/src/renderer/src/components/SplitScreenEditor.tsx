@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { Extension } from '@codemirror/state';
 import { clsx } from 'clsx';
@@ -32,7 +32,13 @@ interface SplitScreenEditorProps {
   formattedFontFamily: string;
 }
 
-export function SplitScreenEditor({
+export interface SplitScreenEditorRef {
+  focusLeft: () => void;
+  focusRight: () => void;
+  focus: (pane: 'left' | 'right') => void;
+}
+
+export const SplitScreenEditor = forwardRef<SplitScreenEditorRef, SplitScreenEditorProps>(({
   leftValue,
   rightValue,
   onLeftChange,
@@ -50,10 +56,31 @@ export function SplitScreenEditor({
   isDarkMode,
   finalFontSize,
   formattedFontFamily
-}: SplitScreenEditorProps) {
+}, ref) => {
   const leftEditorRef = useRef<any>(null);
   const rightEditorRef = useRef<any>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Expose focus methods to parent component
+  useImperativeHandle(ref, () => ({
+    focusLeft: () => {
+      if (leftEditorRef.current?.view) {
+        leftEditorRef.current.view.focus();
+      }
+    },
+    focusRight: () => {
+      if (rightEditorRef.current?.view) {
+        rightEditorRef.current.view.focus();
+      }
+    },
+    focus: (pane: 'left' | 'right') => {
+      if (pane === 'left' && leftEditorRef.current?.view) {
+        leftEditorRef.current.view.focus();
+      } else if (pane === 'right' && rightEditorRef.current?.view) {
+        rightEditorRef.current.view.focus();
+      }
+    }
+  }), []);
 
   // Focus the editor when pane focus changes via keyboard shortcuts
   useEffect(() => {
@@ -250,4 +277,4 @@ export function SplitScreenEditor({
       </div>
     </div>
   );
-}
+});
