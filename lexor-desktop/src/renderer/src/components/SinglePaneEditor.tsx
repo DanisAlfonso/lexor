@@ -1,22 +1,13 @@
 import React, { useRef, forwardRef, useImperativeHandle } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { Extension } from '@codemirror/state';
+import { useAppStore } from '../stores/appStore';
+import { useEditorTheme } from '../hooks/useEditorTheme';
 import { clsx } from 'clsx';
 
 interface SinglePaneEditorProps {
-  // Editor content and handlers
-  value: string;
-  onChange: (value: string) => void;
-  
-  // Editor configuration
   extensions: Extension[];
   basicSetup: any;
-  
-  // Theme and styling
-  isDarkMode: boolean;
-  isFocusMode: boolean;
-  finalFontSize: string;
-  formattedFontFamily: string;
 }
 
 export interface SinglePaneEditorRef {
@@ -24,15 +15,13 @@ export interface SinglePaneEditorRef {
 }
 
 export const SinglePaneEditor = forwardRef<SinglePaneEditorRef, SinglePaneEditorProps>(({
-  value,
-  onChange,
   extensions,
-  basicSetup,
-  isDarkMode,
-  isFocusMode,
-  finalFontSize,
-  formattedFontFamily
+  basicSetup
 }, ref) => {
+  // Get data from store and theme hook
+  const { documentContent, setDocumentContent, isFocusMode } = useAppStore();
+  const { isDarkMode, formattedFontFamily, finalFontSize } = useEditorTheme();
+  
   const editorRef = useRef<any>(null);
 
   // Expose focus method to parent component
@@ -66,8 +55,8 @@ export const SinglePaneEditor = forwardRef<SinglePaneEditorRef, SinglePaneEditor
           >
             <CodeMirror
               ref={editorRef}
-              value={value}
-              onChange={onChange}
+              value={documentContent}
+              onChange={setDocumentContent}
               extensions={extensions}
               basicSetup={basicSetup}
               style={{

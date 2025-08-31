@@ -1,35 +1,13 @@
 import React, { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { Extension } from '@codemirror/state';
+import { useAppStore } from '../stores/appStore';
+import { useEditorTheme } from '../hooks/useEditorTheme';
 import { clsx } from 'clsx';
 
 interface SplitScreenEditorProps {
-  // Editor content and handlers
-  leftValue: string;
-  rightValue: string;
-  onLeftChange: (value: string) => void;
-  onRightChange: (value: string) => void;
-  
-  // Split screen state
-  focusedPane: 'left' | 'right';
-  onLeftFocus: () => void;
-  onRightFocus: () => void;
-  splitRatio: number;
-  setSplitRatio: (ratio: number) => void;
-  
-  // Document titles
-  leftDocument: string | null;
-  rightDocument: string | null;
-  
-  // Editor configuration
   extensions: Extension[];
   basicSetup: any;
-  editorStyle: any;
-  
-  // Theme
-  isDarkMode: boolean;
-  finalFontSize: string;
-  formattedFontFamily: string;
 }
 
 export interface SplitScreenEditorRef {
@@ -39,27 +17,57 @@ export interface SplitScreenEditorRef {
 }
 
 export const SplitScreenEditor = forwardRef<SplitScreenEditorRef, SplitScreenEditorProps>(({
-  leftValue,
-  rightValue,
-  onLeftChange,
-  onRightChange,
-  focusedPane,
-  onLeftFocus,
-  onRightFocus,
-  splitRatio,
-  setSplitRatio,
-  leftDocument,
-  rightDocument,
   extensions,
-  basicSetup,
-  editorStyle,
-  isDarkMode,
-  finalFontSize,
-  formattedFontFamily
+  basicSetup
 }, ref) => {
+  // Get data from store and theme hook
+  const {
+    documentContent,
+    setDocumentContent,
+    rightPaneContent,
+    setRightPaneContent,
+    focusedPane,
+    setFocusedPane,
+    splitRatio,
+    setSplitRatio,
+    currentDocument,
+    rightPaneDocument,
+    isFocusMode
+  } = useAppStore();
+  
+  const { isDarkMode, formattedFontFamily, finalFontSize } = useEditorTheme();
+  
   const leftEditorRef = useRef<any>(null);
   const rightEditorRef = useRef<any>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Handle content changes
+  const handleLeftEditorChange = (value: string) => {
+    setDocumentContent(value);
+    
+    // If both panes show the same document, sync the content
+    if (currentDocument === rightPaneDocument) {
+      setRightPaneContent(value);
+    }
+  };
+
+  const handleRightEditorChange = (value: string) => {
+    setRightPaneContent(value);
+    
+    // If both panes show the same document, sync the content
+    if (currentDocument === rightPaneDocument) {
+      setDocumentContent(value);
+    }
+  };
+
+  // Handle focus events
+  const handleLeftEditorFocus = () => {
+    setFocusedPane('left');
+  };
+
+  const handleRightEditorFocus = () => {
+    setFocusedPane('right');
+  };
 
   // Expose focus methods to parent component
   useImperativeHandle(ref, () => ({
@@ -143,7 +151,9 @@ export const SplitScreenEditor = forwardRef<SplitScreenEditorRef, SplitScreenEdi
       extensions={extensions}
       basicSetup={basicSetup}
       style={{
-        ...editorStyle,
+        height: '100%',
+        fontSize: finalFontSize,
+        fontFamily: formattedFontFamily,
         opacity: isActive ? 1 : 0.8
       }}
     />
@@ -170,7 +180,7 @@ export const SplitScreenEditor = forwardRef<SplitScreenEditorRef, SplitScreenEdi
           borderBottom: 'none',
           outline: 'none'
         }}>
-          <span className="truncate">{getDocumentTitle(leftDocument)}</span>
+          <span className="truncate">{getDocumentTitle(currentDocument)}</span>
           <div className="flex items-center space-x-2">
             {focusedPane === 'left' && (
               <div className={clsx(
@@ -196,9 +206,9 @@ export const SplitScreenEditor = forwardRef<SplitScreenEditorRef, SplitScreenEdi
             }}
           >
             {createEditor(
-              leftValue,
-              onLeftChange,
-              onLeftFocus,
+              documentContent,
+              handleLeftEditorChange,
+              handleLeftEditorFocus,
               leftEditorRef,
               focusedPane === 'left'
             )}
@@ -240,7 +250,7 @@ export const SplitScreenEditor = forwardRef<SplitScreenEditorRef, SplitScreenEdi
           borderBottom: 'none',
           outline: 'none'
         }}>
-          <span className="truncate">{getDocumentTitle(rightDocument)}</span>
+          <span className="truncate">{getDocumentTitle(rightPaneDocument)}</span>
           <div className="flex items-center space-x-2">
             {focusedPane === 'right' && (
               <div className={clsx(
@@ -266,9 +276,9 @@ export const SplitScreenEditor = forwardRef<SplitScreenEditorRef, SplitScreenEdi
             }}
           >
             {createEditor(
-              rightValue,
-              onRightChange,
-              onRightFocus,
+              rightPaneContent,
+              handleRightEditorChange,
+              handleRightEditorFocus,
               rightEditorRef,
               focusedPane === 'right'
             )}

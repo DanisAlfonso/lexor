@@ -8,26 +8,9 @@ import { useAppStore } from '../stores/appStore';
 import { conditionalLivePreview, toggleLivePreview } from '../extensions/livePreview';
 import { SplitScreenEditor, SplitScreenEditorRef } from './SplitScreenEditor';
 import { SinglePaneEditor, SinglePaneEditorRef } from './SinglePaneEditor';
+import { formatFontFamily } from '../utils/editorUtils';
 import { clsx } from 'clsx';
 
-// Helper function to format font family with proper quotes and fallbacks
-const formatFontFamily = (fontFamily: string) => {
-  const fontMap: { [key: string]: string } = {
-    'SF Mono': '"SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace',
-    'Monaco': '"Monaco", "SF Mono", "Consolas", "Liberation Mono", "Courier New", monospace',
-    'Consolas': '"Consolas", "SF Mono", "Monaco", "Liberation Mono", "Courier New", monospace',
-    'JetBrains Mono': '"JetBrains Mono", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace',
-    'Fira Code': '"Fira Code", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace',
-    // Monaspace fonts with appropriate fallbacks
-    'Monaspace Neon': '"Monaspace Neon", "JetBrains Mono", "Fira Code", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace',
-    'Monaspace Argon': '"Monaspace Argon", "JetBrains Mono", "Fira Code", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace',
-    'Monaspace Xenon': '"Monaspace Xenon", "JetBrains Mono", "Fira Code", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace',
-    'Monaspace Radon': '"Monaspace Radon", "JetBrains Mono", "Fira Code", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace',
-    'Monaspace Krypton': '"Monaspace Krypton", "JetBrains Mono", "Fira Code", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace'
-  };
-  
-  return fontMap[fontFamily] || `"${fontFamily}", "SF Mono", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace`;
-};
 
 // Markdown syntax highlighting theme with muted kanagawa-paper colors
 const createMarkdownHighlighting = (isDark: boolean) => {
@@ -359,17 +342,6 @@ export function MarkdownEditor() {
     return (
       <SplitScreenEditor
         ref={splitEditorRef}
-        leftValue={documentContent}
-        rightValue={rightPaneContent}
-        onLeftChange={handleLeftEditorChange}
-        onRightChange={handleRightEditorChange}
-        focusedPane={focusedPane}
-        onLeftFocus={handleLeftEditorFocus}
-        onRightFocus={handleRightEditorFocus}
-        splitRatio={splitRatio}
-        setSplitRatio={setSplitRatio}
-        leftDocument={currentDocument}
-        rightDocument={rightPaneDocument}
         extensions={extensions}
         basicSetup={{
           lineNumbers: false,
@@ -385,14 +357,6 @@ export function MarkdownEditor() {
           rectangularSelection: false,
           crosshairCursor: false
         }}
-        editorStyle={{
-          height: '100%',
-          fontSize: finalFontSize,
-          fontFamily: formattedFontFamily
-        }}
-        isDarkMode={isDarkMode}
-        finalFontSize={finalFontSize}
-        formattedFontFamily={formattedFontFamily}
       />
     );
   }
@@ -401,8 +365,6 @@ export function MarkdownEditor() {
   return (
     <SinglePaneEditor
       ref={singleEditorRef}
-      value={documentContent}
-      onChange={handleLeftEditorChange}
       extensions={extensions}
       basicSetup={{
         lineNumbers: false,
@@ -418,10 +380,6 @@ export function MarkdownEditor() {
         rectangularSelection: false,
         crosshairCursor: false
       }}
-      isDarkMode={isDarkMode}
-      isFocusMode={isFocusMode}
-      finalFontSize={finalFontSize}
-      formattedFontFamily={formattedFontFamily}
     />
   );
 }
