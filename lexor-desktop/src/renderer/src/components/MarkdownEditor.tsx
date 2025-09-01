@@ -332,6 +332,10 @@ export function MarkdownEditor() {
       // Comprehensive font override for all text elements
       '& *, &.cm-editor *, .cm-editor *': {
         fontFamily: `${formattedFontFamily} !important`
+      },
+      // Override any CodeMirror default syntax highlighting colors
+      '& .ͼc': {
+        color: `${isDarkMode ? '#a292a3' : '#a292a3'} !important` // Use your theme's purple color instead of default blue
       }
     }, { dark: isDarkMode })
   ];
