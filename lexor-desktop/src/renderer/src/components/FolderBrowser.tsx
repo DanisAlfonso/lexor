@@ -14,6 +14,7 @@ import {
   PlusIcon,
   FolderPlusIcon,
   SpeakerWaveIcon,
+  DocumentIcon,
 } from '@heroicons/react/24/outline';
 import { clsx } from 'clsx';
 
@@ -43,7 +44,9 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     // Split screen functionality
     isSplitScreenMode,
     openInRightPane,
-    focusedPane
+    focusedPane,
+    // PDF functionality
+    openPdfDocument
   } = useAppStore();
 
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -679,6 +682,43 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     return () => window.removeEventListener('renameSelectedFile', handleRenameSelected);
   }, [selectedItem]);
 
+  // Listen for delete events from menu/keyboard shortcuts  
+  React.useEffect(() => {
+    const handleDeleteSelected = () => {
+      if (selectedItem) {
+        handleDelete(selectedItem);
+      }
+    };
+
+    if (window.electronAPI?.menu?.onDeleteSelected) {
+      const unsubscribe = window.electronAPI.menu.onDeleteSelected(handleDeleteSelected);
+      return unsubscribe;
+    }
+  }, [selectedItem]);
+
+  // Global keyboard shortcut handler for delete
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check if a file/folder is selected in the sidebar
+      if (!selectedItem) return;
+
+      // Handle platform-specific delete shortcuts
+      const isMac = window.electronAPI?.platform?.isMac || navigator.platform.includes('Mac');
+      const isDeleteShortcut = 
+        (isMac && e.metaKey && e.key === 'Backspace') || // Cmd+Backspace on Mac
+        (!isMac && e.key === 'Delete'); // Delete key on Windows/Linux
+
+      if (isDeleteShortcut) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleDelete(selectedItem);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [selectedItem]);
+
   // Listen for folder creation requests from menu
   React.useEffect(() => {
     const handleCreateFolderInLibrary = () => {
@@ -913,8 +953,15 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     
     if (file.isDirectory) {
       await handleFolderClick(file);
-    } else if (onFileSelect) {
-      onFileSelect(file.path);
+    } else {
+      // Check if it's a PDF file and route appropriately
+      if (isPdfFile(file.name)) {
+        // Open PDF in PDF viewer
+        openPdfDocument(file.path);
+      } else if (onFileSelect) {
+        // Open other files (markdown, etc.) in text editor
+        onFileSelect(file.path);
+      }
     }
   };
 
@@ -940,6 +987,12 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     const audioExtensions = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.wma', '.aiff'];
     const fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
     return audioExtensions.includes(fileExtension);
+  };
+
+  // Helper function to determine if a file is a PDF file
+  const isPdfFile = (fileName: string): boolean => {
+    const fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+    return fileExtension === '.pdf';
   };
 
   const flattenTreeItems = (items: FileItem[], depth = 0): (FileItem & { renderDepth: number })[] => {
@@ -980,6 +1033,11 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
                   <SpeakerWaveIcon className={clsx(
                     "h-5 w-5",
                     isDarkMode ? "text-purple-400" : "text-purple-600"
+                  )} />
+                ) : isPdfFile(item.name) ? (
+                  <DocumentIcon className={clsx(
+                    "h-5 w-5",
+                    isDarkMode ? "text-red-400" : "text-red-600"
                   )} />
                 ) : (
                   <DocumentTextIcon className={clsx(
@@ -1092,6 +1150,13 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
                         isDarkMode 
                           ? "text-purple-400 group-hover:text-purple-300" 
                           : "text-purple-600 group-hover:text-purple-700"
+                      )} />
+                    ) : isPdfFile(item.name) ? (
+                      <DocumentIcon className={clsx(
+                        "h-5 w-5 transition-colors",
+                        isDarkMode 
+                          ? "text-red-400 group-hover:text-red-300" 
+                          : "text-red-600 group-hover:text-red-700"
                       )} />
                     ) : (
                       <DocumentTextIcon className={clsx(

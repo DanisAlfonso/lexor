@@ -65,7 +65,10 @@ export function MarkdownEditor() {
     showScrollbar,
     // Live preview state
     isLivePreviewEnabled,
-    setLivePreviewEnabled
+    setLivePreviewEnabled,
+    // Spellcheck state
+    isSpellcheckEnabled,
+    toggleSpellcheck
   } = useAppStore();
 
   // Handle menu-triggered live preview toggle
@@ -231,25 +234,38 @@ export function MarkdownEditor() {
   const formattedFontFamily = formatFontFamily(fontFamily);
   const finalFontSize = `${Math.round((fontSize * zoomLevel) / 100)}px`;
   
-  // Keyboard shortcut handler for live preview (using the existing Cmd+Shift+P shortcut)
-  const livePreviewKeymap = keymap.of([{
-    key: 'Mod-Shift-p',
-    run: (view) => {
-      const newState = !isLivePreviewEnabled;
-      setLivePreviewEnabled(newState);
-      view.dispatch({
-        effects: toggleLivePreview.of(newState)
-      });
-      return true;
+  // Keyboard shortcut handlers
+  const keyboardShortcuts = keymap.of([
+    // Live preview toggle (Cmd+Shift+P)
+    {
+      key: 'Mod-Shift-p',
+      run: (view) => {
+        const newState = !isLivePreviewEnabled;
+        setLivePreviewEnabled(newState);
+        view.dispatch({
+          effects: toggleLivePreview.of(newState)
+        });
+        return true;
+      }
+    },
+    // Spellcheck toggle (Cmd+Shift+;)
+    {
+      key: 'Mod-Shift-;',
+      run: () => {
+        toggleSpellcheck();
+        return true;
+      }
     }
-  }]);
+  ]);
 
   const extensions: Extension[] = [
     markdown(),
     EditorView.lineWrapping, // This is the key for proper responsive wrapping!
     createMarkdownHighlighting(isDarkMode),
     conditionalLivePreview(isDarkMode, lineHeight),
-    livePreviewKeymap,
+    keyboardShortcuts,
+    // Enable native browser spellcheck when enabled
+    ...(isSpellcheckEnabled ? [EditorView.contentAttributes.of({ spellcheck: "true" })] : []),
     // Combine all theme styles into one extension to prevent conflicts
     EditorView.theme({
       '&': { 

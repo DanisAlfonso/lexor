@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, subscribeWithSelector } from 'zustand/middleware';
 
-export type ViewType = 'editor' | 'flashcards' | 'study' | 'settings';
+export type ViewType = 'editor' | 'flashcards' | 'study' | 'settings' | 'pdf';
 
 export interface FileItem {
   name: string;
@@ -25,6 +25,9 @@ export interface AppState {
   currentDocument: string | null;
   documentContent: string;
   isDocumentModified: boolean;
+
+  // PDF State
+  currentPdfPath: string | null;
 
   // Split Screen State
   isSplitScreenMode: boolean;
@@ -58,6 +61,7 @@ export interface AppState {
   fontFamily: string;
   showScrollbar: boolean;
   transparency: number; // 0-100, where 100 is opaque
+  isSpellcheckEnabled: boolean;
   
   // Actions
   setCurrentView: (view: ViewType) => void;
@@ -72,6 +76,10 @@ export interface AppState {
   setCurrentDocument: (path: string | null) => void;
   setDocumentContent: (content: string) => void;
   setDocumentModified: (modified: boolean) => void;
+
+  // PDF Actions
+  setCurrentPdfPath: (path: string | null) => void;
+  openPdfDocument: (filePath: string) => Promise<void>;
 
   // Split Screen Actions
   toggleSplitScreen: () => void;
@@ -113,6 +121,8 @@ export interface AppState {
   setShowScrollbar: (show: boolean) => void;
   toggleScrollbar: () => void;
   setTransparency: (transparency: number) => void;
+  setSpellcheckEnabled: (enabled: boolean) => void;
+  toggleSpellcheck: () => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -128,6 +138,8 @@ export const useAppStore = create<AppState>()(
       currentDocument: null,
       documentContent: '',
       isDocumentModified: false,
+
+      currentPdfPath: null,
 
       isSplitScreenMode: false,
       rightPaneDocument: null,
@@ -156,6 +168,7 @@ export const useAppStore = create<AppState>()(
       fontFamily: 'SF Mono',
       showScrollbar: true,
       transparency: 100,
+      isSpellcheckEnabled: false,
       
       // Actions
       setCurrentView: (view) => set({ currentView: view }),
@@ -227,6 +240,35 @@ export const useAppStore = create<AppState>()(
       setDocumentModified: (modified) => set({ 
         isDocumentModified: modified 
       }),
+
+      // PDF Actions
+      setCurrentPdfPath: (path) => {
+        set({ currentPdfPath: path });
+        if (path) {
+          get().setLastOpenedDocument(path);
+        }
+      },
+
+      openPdfDocument: async (filePath: string) => {
+        try {
+          // Set current PDF path
+          get().setCurrentPdfPath(filePath);
+          
+          // Switch to PDF view
+          get().setCurrentView('pdf');
+          
+          // Track as last opened document
+          get().setLastOpenedDocument(filePath);
+          
+          // Load the library folder to show in sidebar if it's in library
+          const state = get();
+          if (state.libraryFolder && state.isPathInLibrary(filePath)) {
+            await get().openLexorLibrary();
+          }
+        } catch (error) {
+          console.error('Failed to open PDF document:', filePath, error);
+        }
+      },
 
       // Split Screen Actions
       toggleSplitScreen: () => {
@@ -498,9 +540,15 @@ export const useAppStore = create<AppState>()(
 
       openDocumentAndNavigate: async (filePath: string) => {
         try {
-          // Check if this is an audio file
+          // Check file extension
           const audioExtensions = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.wma', '.aiff'];
           const fileExtension = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+          
+          // Handle PDF files
+          if (fileExtension === '.pdf') {
+            await get().openPdfDocument(filePath);
+            return;
+          }
           
           // Set the current document
           get().setCurrentDocument(filePath);
@@ -611,6 +659,9 @@ Happy writing!
       setShowScrollbar: (show) => set({ showScrollbar: show }),
       toggleScrollbar: () => set((state) => ({ showScrollbar: !state.showScrollbar })),
       
+      setSpellcheckEnabled: (enabled) => set({ isSpellcheckEnabled: enabled }),
+      toggleSpellcheck: () => set((state) => ({ isSpellcheckEnabled: !state.isSpellcheckEnabled })),
+      
       setTransparency: (transparency) => {
         const clampedTransparency = Math.max(60, Math.min(100, transparency));
         set({ transparency: clampedTransparency });
@@ -644,6 +695,7 @@ Happy writing!
         splitRatio: state.splitRatio,
         showScrollbar: state.showScrollbar,
         transparency: state.transparency,
+        isSpellcheckEnabled: state.isSpellcheckEnabled,
       }),
     })
   )

@@ -24,6 +24,7 @@ const electronAPI = {
     showOpenDialog: () => ipcRenderer.invoke('file:showOpenDialog'),
     showSaveDialog: () => ipcRenderer.invoke('file:showSaveDialog'),
     readFile: (filePath: string) => ipcRenderer.invoke('file:readFile', filePath),
+    readFileAsBuffer: (filePath: string) => ipcRenderer.invoke('file:readFileAsBuffer', filePath),
     writeFile: (filePath: string, content: string) => ipcRenderer.invoke('file:writeFile', filePath, content),
     rename: (oldPath: string, newName: string) => ipcRenderer.invoke('file:rename', oldPath, newName),
     delete: (filePath: string) => ipcRenderer.invoke('file:delete', filePath),

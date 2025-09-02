@@ -5,6 +5,7 @@ import { MarkdownEditor } from './components/MarkdownEditor';
 import { FlashcardView } from './components/FlashcardView';
 import { StudySession } from './components/StudySession';
 import { Settings } from './components/Settings';
+import { PDFViewer } from './components/PDFViewer';
 import { useAppStore } from './stores/appStore';
 import { useMenuHandlers } from './hooks/useMenuHandlers';
 import { clsx } from 'clsx';
@@ -17,7 +18,8 @@ function App() {
     theme,
     isLibraryInitialized,
     initializeLexorLibrary,
-    autoOpenAppropriateDocument
+    autoOpenAppropriateDocument,
+    currentPdfPath
   } = useAppStore();
   const [isLoading, setIsLoading] = useState(true);
   const [systemIsDark, setSystemIsDark] = useState(() => {
@@ -134,6 +136,7 @@ function App() {
           {currentView === 'flashcards' && <FlashcardView />}
           {currentView === 'study' && <StudySession />}
           {currentView === 'settings' && <Settings />}
+          {currentView === 'pdf' && currentPdfPath && <PDFViewer pdfPath={currentPdfPath} />}
         </div>
       </div>
     </div>

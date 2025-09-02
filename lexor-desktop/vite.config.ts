@@ -46,5 +46,12 @@ export default defineConfig({
 
   define: {
     __DEV__: process.env.NODE_ENV === 'development'
+  },
+
+  // Configure PDF.js worker
+  assetsInclude: ['**/*.worker.js', '**/*.worker.mjs'],
+  
+  worker: {
+    format: 'es'
   }
 });

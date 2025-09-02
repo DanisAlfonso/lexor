@@ -250,8 +250,8 @@ class LexorApp {
               fileList.push(folderItem);
             } else if (stats.isFile()) {
               const ext = extname(item).toLowerCase();
-              // Only include markdown, text files, audio files, and some other common formats
-              const supportedExtensions = ['.md', '.markdown', '.txt', '.text', '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.wma', '.aiff'];
+              // Only include markdown, text files, audio files, PDF files, and some other common formats
+              const supportedExtensions = ['.md', '.markdown', '.txt', '.text', '.pdf', '.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac', '.wma', '.aiff'];
               if (supportedExtensions.includes(ext)) {
                 fileList.push({
                   name: item,
@@ -739,6 +739,17 @@ Happy creating!
         return content;
       } catch (error: any) {
         console.error('File read error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('file:readFileAsBuffer', async (_, filePath: string) => {
+      try {
+        const { readFile } = await import('fs/promises');
+        const buffer = await readFile(filePath);
+        return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+      } catch (error: any) {
+        console.error('File buffer read error:', error);
         throw error;
       }
     });
