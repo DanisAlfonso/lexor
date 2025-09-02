@@ -72,6 +72,7 @@
     "@codemirror/view": "^6.38.1",
     "@headlessui/react": "^2.2.0",
     "@heroicons/react": "^2.2.0",
+    "@replit/codemirror-vim": "^6.3.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/better-sqlite3": "^7.6.13",
     "@types/katex": "^0.16.7",

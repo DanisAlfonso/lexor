@@ -563,8 +563,8 @@ Happy creating!
 
 
     // Menu state management
-    ipcMain.on('menu:updateState', (_, hasSelectedFile: boolean, currentView: string, isStudying?: boolean) => {
-      updateMenuState(hasSelectedFile, currentView, isStudying || false);
+    ipcMain.on('menu:updateState', (_, hasSelectedFile: boolean, currentView: string, isStudying?: boolean, menuStates?: { isVimModeEnabled?: boolean }) => {
+      updateMenuState(hasSelectedFile, currentView, isStudying || false, menuStates);
     });
 
     // Context menu handler

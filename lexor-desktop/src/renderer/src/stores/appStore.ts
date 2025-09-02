@@ -73,6 +73,7 @@ export interface AppState {
   isSpellcheckEnabled: boolean;
   isGrammarCheckEnabled: boolean;
   grammarCheckLanguage: string;
+  isVimModeEnabled: boolean;
   
   // Actions
   setCurrentView: (view: ViewType) => void;
@@ -137,6 +138,8 @@ export interface AppState {
   setGrammarCheckEnabled: (enabled: boolean) => void;
   toggleGrammarCheck: () => void;
   setGrammarCheckLanguage: (language: string) => void;
+  setVimModeEnabled: (enabled: boolean) => void;
+  toggleVimMode: () => void;
   // Auto-save actions
   setAutoSaveEnabled: (enabled: boolean) => void;
   setAutoSaveInterval: (interval: number) => void;
@@ -208,6 +211,7 @@ export const useAppStore = create<AppState>()(
       isSpellcheckEnabled: false,
       isGrammarCheckEnabled: false,
       grammarCheckLanguage: 'auto',
+      isVimModeEnabled: false,
       
       // Actions
       setCurrentView: (view) => set({ currentView: view }),
@@ -708,6 +712,9 @@ Happy writing!
       toggleGrammarCheck: () => set((state) => ({ isGrammarCheckEnabled: !state.isGrammarCheckEnabled })),
       setGrammarCheckLanguage: (language) => set({ grammarCheckLanguage: language }),
       
+      setVimModeEnabled: (enabled) => set({ isVimModeEnabled: enabled }),
+      toggleVimMode: () => set((state) => ({ isVimModeEnabled: !state.isVimModeEnabled })),
+      
       // Auto-save actions
       setAutoSaveEnabled: (enabled) => set({ isAutoSaveEnabled: enabled }),
       setAutoSaveInterval: (interval) => set({ autoSaveInterval: Math.max(5, Math.min(300, interval)) }), // 5-300 seconds
@@ -788,6 +795,7 @@ Happy writing!
         isSpellcheckEnabled: state.isSpellcheckEnabled,
         isGrammarCheckEnabled: state.isGrammarCheckEnabled,
         grammarCheckLanguage: state.grammarCheckLanguage,
+        isVimModeEnabled: state.isVimModeEnabled,
       }),
     })
   )

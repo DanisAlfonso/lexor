@@ -8,6 +8,7 @@ import { useAppStore } from '../stores/appStore';
 import { conditionalLivePreview, toggleLivePreview } from '../extensions/livePreview';
 import { createGrammarCheckExtension } from '../extensions/grammarCheck';
 import { createHangingIndentExtension } from '../extensions/hangingIndent';
+import { vim, Vim, getCM } from '@replit/codemirror-vim';
 import { SplitScreenEditor, SplitScreenEditorRef } from './SplitScreenEditor';
 import { SinglePaneEditor, SinglePaneEditorRef } from './SinglePaneEditor';
 import { formatFontFamily } from '../utils/editorUtils';
@@ -47,6 +48,7 @@ export function MarkdownEditor() {
   const {
     documentContent,
     setDocumentContent,
+    setDocumentModified,
     isFocusMode,
     zoomLevel,
     fontSize,
@@ -75,7 +77,10 @@ export function MarkdownEditor() {
     // Grammar check state
     isGrammarCheckEnabled,
     toggleGrammarCheck,
-    grammarCheckLanguage
+    grammarCheckLanguage,
+    // Vim mode state
+    isVimModeEnabled,
+    toggleVimMode
   } = useAppStore();
 
   // Handle menu-triggered live preview toggle
@@ -224,6 +229,40 @@ export function MarkdownEditor() {
     return () => clearTimeout(timer);
   }, [focusedPane, isSplitScreenMode]);
 
+  // Configure vim commands when vim mode is enabled
+  useEffect(() => {
+    if (isVimModeEnabled && window.electronAPI?.file?.writeFile) {
+      // Configure the :w (write) command
+      Vim.defineEx('write', 'w', async () => {
+        try {
+          if (currentDocument && documentContent !== undefined) {
+            await window.electronAPI.file.writeFile(currentDocument, documentContent);
+            setDocumentModified(false);
+            console.log('Document saved via vim :w command');
+          } else {
+            console.warn('No document to save or document content is undefined');
+          }
+        } catch (error) {
+          console.error('Failed to save document via vim :w:', error);
+        }
+      });
+
+      // Configure the :wq (write and quit) command - same as :w in this context
+      Vim.defineEx('wq', 'wq', async () => {
+        try {
+          if (currentDocument && documentContent !== undefined) {
+            await window.electronAPI.file.writeFile(currentDocument, documentContent);
+            setDocumentModified(false);
+            console.log('Document saved via vim :wq command');
+          } else {
+            console.warn('No document to save or document content is undefined');
+          }
+        } catch (error) {
+          console.error('Failed to save document via vim :wq:', error);
+        }
+      });
+    }
+  }, [isVimModeEnabled, currentDocument, documentContent, setDocumentModified]);
 
   // Determine if we should use dark mode
   const isDarkMode = theme === 'dark' || (theme === 'system' && systemTheme === 'dark');
@@ -273,10 +312,20 @@ export function MarkdownEditor() {
         toggleGrammarCheck();
         return true;
       }
+    },
+    // Vim mode toggle (Cmd+Shift+V)
+    {
+      key: 'Mod-Shift-v',
+      run: () => {
+        toggleVimMode();
+        return true;
+      }
     }
   ]);
 
   const extensions: Extension[] = [
+    // Vim extension must come first if enabled
+    ...(isVimModeEnabled ? [vim()] : []),
     markdown(),
     EditorView.lineWrapping, // This is the key for proper responsive wrapping!
     createMarkdownHighlighting(isDarkMode),
@@ -373,6 +422,90 @@ export function MarkdownEditor() {
       // Override any CodeMirror default syntax highlighting colors
       '& .ͼc': {
         color: `${isDarkMode ? '#a292a3' : '#a292a3'} !important` // Use your theme's purple color instead of default blue
+      },
+      // VS Code style vim status bar - fixed at bottom of editor
+      '& .cm-vim-panel, & .cm-panel, & [class*="vim-panel"], & [class*="vim-command"]': {
+        position: 'fixed !important',
+        bottom: '0 !important',
+        left: '0 !important',
+        right: '0 !important',
+        zIndex: '1000 !important',
+        backgroundColor: `${isDarkMode ? '#2A2D3A' : '#f3f3f3'} !important`,
+        border: 'none !important',
+        borderTop: `1px solid ${isDarkMode ? '#3E4451' : '#e0e0e0'} !important`,
+        borderRadius: '0 !important',
+        padding: '4px 12px !important',
+        fontSize: '12px !important',
+        fontFamily: `${formattedFontFamily} !important`,
+        color: `${isDarkMode ? '#ABB2BF' : '#666666'} !important`,
+        boxShadow: 'none !important',
+        minHeight: '22px !important',
+        maxHeight: '22px !important',
+        overflow: 'hidden !important',
+        display: 'flex !important',
+        alignItems: 'center !important',
+        textAlign: 'left !important'
+      },
+      '& .cm-vim-panel input, & .cm-panel input, & [class*="vim-panel"] input, & [class*="vim-command"] input': {
+        backgroundColor: 'transparent !important',
+        border: 'none !important',
+        outline: 'none !important',
+        color: `${isDarkMode ? '#ABB2BF' : '#666666'} !important`,
+        fontSize: '12px !important',
+        fontFamily: `${formattedFontFamily} !important`,
+        padding: '0 !important',
+        margin: '0 !important',
+        width: 'auto !important',
+        boxShadow: 'none !important',
+        textAlign: 'left !important',
+        flex: 'none !important'
+      },
+      // Vim search highlighting
+      '& .cm-vim-search, & .cm-searchMatch': {
+        backgroundColor: `${isDarkMode ? '#c4b28a' : '#fbbf24'} !important`,
+        color: `${isDarkMode ? '#1F1F28' : '#000000'} !important`
+      },
+      // Hide cursor when vim command panel is active
+      '&:has(.cm-vim-panel) .cm-cursor, &:has(.cm-panel) .cm-cursor': {
+        display: 'none !important'
+      },
+      '&:has(.cm-vim-panel) .cm-cursor-primary, &:has(.cm-panel) .cm-cursor-primary': {
+        display: 'none !important'
+      },
+      // Vim cursor styling for normal states
+      '& .cm-vim-cursor': {
+        backgroundColor: `${isDarkMode ? '#c4b28a' : '#393836'} !important`,
+        color: `${isDarkMode ? '#1F1F28' : '#ffffff'} !important`,
+        borderRadius: '2px !important',
+        opacity: '0.8 !important'
+      },
+      '& .cm-cursor-primary': {
+        borderLeftColor: `${isDarkMode ? '#c4b28a' : '#393836'} !important`,
+        borderLeftWidth: '2px !important'
+      },
+      // Vim visual selection
+      '& .cm-vim-visual': {
+        backgroundColor: `${isDarkMode ? 'rgba(196, 178, 138, 0.3)' : 'rgba(57, 56, 54, 0.2)'} !important`
+      },
+      // General panel styling for search/replace dialogs - VS Code style
+      '& .cm-dialog, & .cm-textfield': {
+        position: 'fixed !important',
+        bottom: '0 !important',
+        left: '0 !important',
+        right: '0 !important',
+        zIndex: '1000 !important',
+        backgroundColor: `${isDarkMode ? '#2A2D3A' : '#f3f3f3'} !important`,
+        border: 'none !important',
+        borderTop: `1px solid ${isDarkMode ? '#3E4451' : '#e0e0e0'} !important`,
+        borderRadius: '0 !important',
+        padding: '4px 12px !important',
+        fontSize: '12px !important',
+        fontFamily: `${formattedFontFamily} !important`,
+        color: `${isDarkMode ? '#ABB2BF' : '#666666'} !important`,
+        boxShadow: 'none !important',
+        minHeight: '22px !important',
+        display: 'flex !important',
+        alignItems: 'center !important'
       },
       // Hanging indent styles for markdown lists
       '.hanging-indent': {

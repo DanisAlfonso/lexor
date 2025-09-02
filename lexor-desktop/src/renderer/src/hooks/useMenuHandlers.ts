@@ -33,6 +33,9 @@ export function useMenuHandlers() {
     toggleScrollbar,
     // Document stats toggle
     toggleDocumentStats,
+    // Vim mode toggle
+    toggleVimMode,
+    isVimModeEnabled,
   } = useAppStore();
 
   const { currentSession, discoverAndSyncLibrary } = useFlashcardStore();
@@ -42,9 +45,9 @@ export function useMenuHandlers() {
     if (window.electronAPI?.menu?.updateState) {
       const hasSelectedFile = selectedItem !== null;
       const isStudying = currentSession !== null;
-      window.electronAPI.menu.updateState(hasSelectedFile, currentView, isStudying);
+      window.electronAPI.menu.updateState(hasSelectedFile, currentView, isStudying, { isVimModeEnabled });
     }
-  }, [selectedItem, currentView, currentSession]);
+  }, [selectedItem, currentView, currentSession, isVimModeEnabled]);
 
   useEffect(() => {
     if (!window.electronAPI) return;
@@ -311,6 +314,10 @@ export function useMenuHandlers() {
       toggleDocumentStats();
     };
 
+    const handleToggleVimMode = () => {
+      toggleVimMode();
+    };
+
     const handleRenameSelected = () => {
       if (!selectedItem) {
         console.warn('No item selected for rename');
@@ -400,6 +407,7 @@ export function useMenuHandlers() {
       window.electronAPI.menu.onToggleScrollbar(handleToggleScrollbar),
       window.electronAPI.menu.onSwitchFlashcardView(handleSwitchFlashcardView),
       window.electronAPI.menu.onToggleDocumentStats(handleToggleDocumentStats),
+      window.electronAPI.menu.onToggleVimMode(handleToggleVimMode),
     ];
 
     // Cleanup function
@@ -433,6 +441,8 @@ export function useMenuHandlers() {
     isSplitScreenMode,
     toggleScrollbar,
     toggleDocumentStats,
+    toggleVimMode,
+    isVimModeEnabled,
     discoverAndSyncLibrary,
   ]);
 }

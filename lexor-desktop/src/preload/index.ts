@@ -73,8 +73,8 @@ const electronAPI = {
 
   // Menu management
   menu: {
-    updateState: (hasSelectedFile: boolean, currentView: string, isStudying?: boolean) => 
-      ipcRenderer.send('menu:updateState', hasSelectedFile, currentView, isStudying),
+    updateState: (hasSelectedFile: boolean, currentView: string, isStudying?: boolean, menuStates?: { isVimModeEnabled?: boolean }) => 
+      ipcRenderer.send('menu:updateState', hasSelectedFile, currentView, isStudying, menuStates),
     onNewDocument: (callback: () => void) => {
       ipcRenderer.on('menu:new-document', callback);
       return () => ipcRenderer.removeListener('menu:new-document', callback);
@@ -220,6 +220,10 @@ const electronAPI = {
     onToggleDocumentStats: (callback: () => void) => {
       ipcRenderer.on('menu:toggle-document-stats', callback);
       return () => ipcRenderer.removeListener('menu:toggle-document-stats', callback);
+    },
+    onToggleVimMode: (callback: () => void) => {
+      ipcRenderer.on('menu:toggle-vim-mode', callback);
+      return () => ipcRenderer.removeListener('menu:toggle-vim-mode', callback);
     },
   },
 

@@ -130,6 +130,13 @@ export function createMenu(): Menu {
           label: 'Find and Replace', 
           accelerator: 'CmdOrCtrl+H',
           click: () => showFindReplace()
+        },
+        { type: 'separator' },
+        { 
+          label: 'Vim Mode', 
+          accelerator: 'CmdOrCtrl+Shift+V',
+          type: 'checkbox',
+          click: () => toggleVimMode()
         }
       ]
     },
@@ -451,7 +458,7 @@ export function createMenu(): Menu {
 }
 
 // Update menu item states based on current context
-export function updateMenuState(hasSelectedFile: boolean, currentView: string, isStudying: boolean = false): void {
+export function updateMenuState(hasSelectedFile: boolean, currentView: string, isStudying: boolean = false, menuStates?: { isVimModeEnabled?: boolean }): void {
   if (!currentMenu) return;
 
   // Only enable rename/delete when in editor view with a selected file
@@ -462,9 +469,15 @@ export function updateMenuState(hasSelectedFile: boolean, currentView: string, i
   if (editMenu && editMenu.submenu) {
     const renameItem = editMenu.submenu.items.find(item => item.label === 'Rename');
     const deleteItem = editMenu.submenu.items.find(item => item.label === 'Delete');
+    const vimModeItem = editMenu.submenu.items.find(item => item.label === 'Vim Mode');
     
     if (renameItem) renameItem.enabled = shouldEnable;
     if (deleteItem) deleteItem.enabled = shouldEnable;
+    
+    // Update vim mode checkbox state
+    if (vimModeItem && menuStates?.isVimModeEnabled !== undefined) {
+      vimModeItem.checked = menuStates.isVimModeEnabled;
+    }
   }
 
   // Find and update the Study menu items
@@ -602,6 +615,11 @@ function showFind(): void {
 function showFindReplace(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   focusedWindow?.webContents.send('menu:find-replace');
+}
+
+function toggleVimMode(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:toggle-vim-mode');
 }
 
 function renameSelectedItem(): void {
