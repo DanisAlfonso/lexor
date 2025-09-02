@@ -1,4 +1,4 @@
-import { Menu, MenuItemConstructorOptions, app, BrowserWindow, dialog } from 'electron';
+import { Menu, MenuItemConstructorOptions, MenuItem, app, BrowserWindow, dialog } from 'electron';
 
 let currentMenu: Menu | null = null;
 
@@ -188,6 +188,13 @@ export function createMenu(): Menu {
           accelerator: 'CmdOrCtrl+Shift+B',
           type: 'checkbox',
           click: () => toggleScrollbar()
+        },
+        { 
+          label: 'Toggle Document Stats', 
+          accelerator: 'CmdOrCtrl+Shift+I',
+          type: 'checkbox',
+          checked: true, // Default to true since showDocumentStats defaults to true
+          click: (menuItem: MenuItem) => toggleDocumentStats(menuItem)
         },
         { type: 'separator' },
         { 
@@ -652,6 +659,13 @@ function toggleScrollbar(): void {
   focusedWindow?.webContents.send('menu:toggle-scrollbar');
 }
 
+function toggleDocumentStats(menuItem: MenuItem): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:toggle-document-stats');
+  // Note: menuItem.checked is automatically toggled by Electron, 
+  // so it reflects the new state after the click
+}
+
 function switchFlashcardView(viewMode: string): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   focusedWindow?.webContents.send('menu:switch-flashcard-view', viewMode);
@@ -1057,5 +1071,59 @@ function returnToPreviousSize(): void {
   if (!focusedWindow || !previousWindowBounds) return;
   
   focusedWindow.setBounds(previousWindowBounds);
+}
+
+// Create native context menu for file/folder items
+export function createContextMenu(item: any, window: BrowserWindow): Menu {
+  const template: MenuItemConstructorOptions[] = [];
+
+  // New Folder and New Document - only for directories
+  if (item.isDirectory) {
+    template.push(
+      {
+        label: 'New Folder',
+        click: () => {
+          window.webContents.send('context-menu:new-folder', item.path);
+        }
+      },
+      {
+        label: 'New Document',
+        click: () => {
+          window.webContents.send('context-menu:new-document', item.path);
+        }
+      },
+      { type: 'separator' }
+    );
+  }
+
+  // Open in Right Pane - only for files in split screen mode
+  if (!item.isDirectory) {
+    template.push({
+      label: 'Open in Right Pane',
+      click: () => {
+        window.webContents.send('context-menu:open-in-right-pane', item.path);
+      }
+    });
+  }
+
+  // Rename and Delete - always available
+  template.push(
+    {
+      label: 'Rename',
+      accelerator: 'F2',
+      click: () => {
+        window.webContents.send('context-menu:rename', item);
+      }
+    },
+    {
+      label: 'Delete',
+      accelerator: process.platform === 'darwin' ? 'Cmd+Backspace' : 'Delete',
+      click: () => {
+        window.webContents.send('context-menu:delete', item);
+      }
+    }
+  );
+
+  return Menu.buildFromTemplate(template);
 }
 

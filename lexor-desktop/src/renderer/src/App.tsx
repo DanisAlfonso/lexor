@@ -6,6 +6,7 @@ import { FlashcardView } from './components/FlashcardView';
 import { StudySession } from './components/StudySession';
 import { Settings } from './components/Settings';
 import { PDFViewer } from './components/PDFViewer';
+import { DocumentStats } from './components/DocumentStats';
 import { useAppStore } from './stores/appStore';
 import { useMenuHandlers } from './hooks/useMenuHandlers';
 import { clsx } from 'clsx';
@@ -139,6 +140,9 @@ function App() {
           {currentView === 'pdf' && currentPdfPath && <PDFViewer pdfPath={currentPdfPath} />}
         </div>
       </div>
+
+      {/* Document Stats - Only show when editing documents */}
+      {currentView === 'editor' && <DocumentStats />}
     </div>
   );
 }

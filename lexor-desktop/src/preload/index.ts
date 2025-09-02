@@ -217,6 +217,10 @@ const electronAPI = {
       ipcRenderer.on('menu:switch-flashcard-view', handler);
       return () => ipcRenderer.removeListener('menu:switch-flashcard-view', handler);
     },
+    onToggleDocumentStats: (callback: () => void) => {
+      ipcRenderer.on('menu:toggle-document-stats', callback);
+      return () => ipcRenderer.removeListener('menu:toggle-document-stats', callback);
+    },
   },
 
   // Database operations (for local SQLite database)
@@ -245,6 +249,37 @@ const electronAPI = {
     isMac: process.platform === 'darwin',
     isWindows: process.platform === 'win32',
     isLinux: process.platform === 'linux',
+  },
+
+  // Context menu
+  contextMenu: {
+    show: (x: number, y: number, item: any) => ipcRenderer.invoke('context-menu:show', x, y, item),
+    onNewFolder: (callback: (parentPath: string) => void) => {
+      ipcRenderer.on('context-menu:new-folder', (_, parentPath) => callback(parentPath));
+      return () => ipcRenderer.removeAllListeners('context-menu:new-folder');
+    },
+    onNewDocument: (callback: (parentPath: string) => void) => {
+      ipcRenderer.on('context-menu:new-document', (_, parentPath) => callback(parentPath));
+      return () => ipcRenderer.removeAllListeners('context-menu:new-document');
+    },
+    onOpenInRightPane: (callback: (filePath: string) => void) => {
+      ipcRenderer.on('context-menu:open-in-right-pane', (_, filePath) => callback(filePath));
+      return () => ipcRenderer.removeAllListeners('context-menu:open-in-right-pane');
+    },
+    onRename: (callback: (item: any) => void) => {
+      ipcRenderer.on('context-menu:rename', (_, item) => callback(item));
+      return () => ipcRenderer.removeAllListeners('context-menu:rename');
+    },
+    onDelete: (callback: (item: any) => void) => {
+      ipcRenderer.on('context-menu:delete', (_, item) => callback(item));
+      return () => ipcRenderer.removeAllListeners('context-menu:delete');
+    }
+  },
+
+  // Native dialogs
+  dialog: {
+    createFolder: (parentPath: string) => ipcRenderer.invoke('dialog:createFolder', parentPath),
+    createDocument: (parentPath: string) => ipcRenderer.invoke('dialog:createDocument', parentPath)
   },
 };
 

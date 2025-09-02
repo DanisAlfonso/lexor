@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, ipcMain, shell, protocol } from 'electron';
 import { join } from 'path';
 import { autoUpdater } from 'electron-updater';
-import { createMenu, updateMenuState, setupWindowResizeTracking } from './menu';
+import { createMenu, updateMenuState, setupWindowResizeTracking, createContextMenu } from './menu';
 import { WindowManager } from './windows';
 import { watch, FSWatcher } from 'chokidar';
 import { FlashcardDatabase } from './database';
@@ -565,6 +565,95 @@ Happy creating!
     // Menu state management
     ipcMain.on('menu:updateState', (_, hasSelectedFile: boolean, currentView: string, isStudying?: boolean) => {
       updateMenuState(hasSelectedFile, currentView, isStudying || false);
+    });
+
+    // Context menu handler
+    ipcMain.handle('context-menu:show', async (event, x: number, y: number, item: any) => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (!window) return;
+
+      const menu = createContextMenu(item, window);
+      menu.popup({ 
+        window, 
+        x: Math.round(x), 
+        y: Math.round(y) 
+      });
+    });
+
+    // Native folder creation dialog
+    ipcMain.handle('dialog:createFolder', async (event, parentPath: string) => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (!window) return { canceled: true };
+
+      const { dialog } = await import('electron');
+      const result = await dialog.showSaveDialog(window, {
+        title: 'Create New Folder',
+        defaultPath: `${parentPath}/New Folder`,
+        buttonLabel: 'Create Folder',
+        properties: ['createDirectory', 'showOverwriteConfirmation']
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { canceled: true };
+      }
+
+      try {
+        const { mkdir } = await import('fs/promises');
+        await mkdir(result.filePath, { recursive: true });
+        return { 
+          canceled: false, 
+          folderPath: result.filePath,
+          folderName: result.filePath.split('/').pop() || 'New Folder'
+        };
+      } catch (error: any) {
+        return { 
+          canceled: false, 
+          error: error.message 
+        };
+      }
+    });
+
+    // Native document creation dialog
+    ipcMain.handle('dialog:createDocument', async (event, parentPath: string) => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (!window) return { canceled: true };
+
+      const { dialog } = await import('electron');
+      const result = await dialog.showSaveDialog(window, {
+        title: 'Create New Document',
+        defaultPath: `${parentPath}/New Document.md`,
+        buttonLabel: 'Create Document',
+        filters: [
+          { name: 'Markdown Files', extensions: ['md'] },
+          { name: 'Text Files', extensions: ['txt'] },
+          { name: 'All Files', extensions: ['*'] }
+        ],
+        properties: ['showOverwriteConfirmation']
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { canceled: true };
+      }
+
+      try {
+        const { writeFile } = await import('fs/promises');
+        const fileName = result.filePath.split('/').pop() || 'New Document';
+        const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
+        const initialContent = `# ${nameWithoutExt}\n\n`;
+        
+        await writeFile(result.filePath, initialContent, 'utf-8');
+        return { 
+          canceled: false, 
+          filePath: result.filePath,
+          fileName: fileName,
+          content: initialContent
+        };
+      } catch (error: any) {
+        return { 
+          canceled: false, 
+          error: error.message 
+        };
+      }
     });
 
     // File watching

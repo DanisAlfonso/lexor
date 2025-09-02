@@ -11,6 +11,7 @@ import { createHangingIndentExtension } from '../extensions/hangingIndent';
 import { SplitScreenEditor, SplitScreenEditorRef } from './SplitScreenEditor';
 import { SinglePaneEditor, SinglePaneEditorRef } from './SinglePaneEditor';
 import { formatFontFamily } from '../utils/editorUtils';
+import { useAutoSave } from '../hooks/useAutoSave';
 import { clsx } from 'clsx';
 
 
@@ -106,6 +107,9 @@ export function MarkdownEditor() {
 
   const singleEditorRef = useRef<SinglePaneEditorRef>(null);
   const splitEditorRef = useRef<SplitScreenEditorRef>(null);
+
+  // Auto-save functionality
+  const { isAutoSaveEnabled, isAutoSaving } = useAutoSave();
 
   // State for system theme detection
   const [systemTheme, setSystemTheme] = useState(

@@ -15,6 +15,11 @@ export function Settings() {
     isSpellcheckEnabled,
     isGrammarCheckEnabled,
     grammarCheckLanguage,
+    // Auto-save settings
+    isAutoSaveEnabled,
+    autoSaveInterval,
+    setAutoSaveEnabled,
+    setAutoSaveInterval,
     setTheme,
     setFontSize,
     setLineHeight,
@@ -605,6 +610,100 @@ export function Settings() {
                 <li>• <strong>Retention:</strong> Uses FSRS algorithm to optimize your study schedule</li>
               </ul>
             </div>
+          </div>
+        </div>
+
+        {/* Auto-Save */}
+        <div className={clsx(
+          'p-6 mb-6 rounded-xl shadow-sm border',
+          isDarkMode 
+            ? 'bg-kanagawa-ink4 border-kanagawa-ink5' 
+            : 'bg-white border-gray-200'
+        )}>
+          <div className="flex items-center mb-4">
+            <ClockIcon className={clsx(
+              'h-5 w-5 mr-2',
+              isDarkMode ? 'text-blue-400' : 'text-blue-600'
+            )} />
+            <h2 className={clsx(
+              'text-xl font-semibold',
+              isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-900'
+            )}>
+              Auto-Save
+            </h2>
+          </div>
+          
+          <div className="space-y-4">
+            {/* Auto-Save Toggle */}
+            <div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className={clsx(
+                    'text-sm font-medium',
+                    isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                  )}>
+                    Enable Auto-Save
+                  </h3>
+                  <p className={clsx(
+                    'text-xs mt-1',
+                    isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+                  )}>
+                    Automatically save documents while you type
+                  </p>
+                </div>
+                <button
+                  onClick={() => setAutoSaveEnabled(!isAutoSaveEnabled)}
+                  className={clsx(
+                    'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2',
+                    isAutoSaveEnabled
+                      ? 'bg-accent-blue focus:ring-accent-blue'
+                      : isDarkMode 
+                        ? 'bg-kanagawa-ink5 focus:ring-kanagawa-ink6' 
+                        : 'bg-gray-200 focus:ring-gray-300'
+                  )}
+                >
+                  <span
+                    className={clsx(
+                      'inline-block h-4 w-4 transform rounded-full bg-white transition',
+                      isAutoSaveEnabled ? 'translate-x-6' : 'translate-x-1'
+                    )}
+                  />
+                </button>
+              </div>
+            </div>
+            
+            {/* Auto-Save Interval */}
+            {isAutoSaveEnabled && (
+              <div>
+                <label className={clsx(
+                  'block text-sm font-medium mb-2',
+                  isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                )}>
+                  Auto-Save Interval: {autoSaveInterval} seconds
+                </label>
+                <input
+                  type="range"
+                  min="5"
+                  max="300"
+                  step="5"
+                  value={autoSaveInterval}
+                  onChange={(e) => setAutoSaveInterval(Number(e.target.value))}
+                  className={clsx(
+                    'w-full h-2 rounded-lg appearance-none cursor-pointer',
+                    isDarkMode 
+                      ? 'bg-kanagawa-ink5 slider-thumb-blue' 
+                      : 'bg-gray-200 slider-thumb-blue'
+                  )}
+                />
+                <div className={clsx(
+                  'flex justify-between text-xs mt-1',
+                  isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+                )}>
+                  <span>5s (frequent)</span>
+                  <span>5m (less frequent)</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

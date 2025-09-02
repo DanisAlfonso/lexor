@@ -52,27 +52,10 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [treeData, setTreeData] = useState<FileItem[]>([]);
   const [isTreeView, setIsTreeView] = useState(true); // Enable tree view by default
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    item: FileItem | null;
-    isVisible: boolean;
-  }>({ x: 0, y: 0, item: null, isVisible: false });
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
   
-  // New Folder dialog state
-  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [newFolderParentPath, setNewFolderParentPath] = useState<string>('');
-  const newFolderInputRef = useRef<HTMLInputElement>(null);
-
-  // New Document dialog state
-  const [showNewDocumentDialog, setShowNewDocumentDialog] = useState(false);
-  const [newDocumentName, setNewDocumentName] = useState('');
-  const [newDocumentParentPath, setNewDocumentParentPath] = useState<string>('');
-  const newDocumentInputRef = useRef<HTMLInputElement>(null);
 
   // Drag & Drop state
   const [draggedItem, setDraggedItem] = useState<FileItem | null>(null);
@@ -167,22 +150,17 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
   };
 
   // File management functions
-  const handleContextMenu = (e: React.MouseEvent, item: FileItem) => {
+  const handleContextMenu = async (e: React.MouseEvent, item: FileItem) => {
     e.preventDefault();
-    setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
-      item,
-      isVisible: true
-    });
+    
+    // Use native context menu
+    if (window.electronAPI?.contextMenu) {
+      await window.electronAPI.contextMenu.show(e.clientX, e.clientY, item);
+    }
   };
 
-  const closeContextMenu = () => {
-    setContextMenu(prev => ({ ...prev, isVisible: false }));
-  };
 
   const handleRename = async (item: FileItem) => {
-    closeContextMenu();
     setEditingItem(item.path);
     setNewItemName(item.name);
     // Focus input after a short delay to ensure it's rendered
@@ -211,7 +189,6 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
   };
 
   const handleDelete = async (item: FileItem) => {
-    closeContextMenu();
     
     try {
       // Check if this file/folder contains flashcards
@@ -374,44 +351,32 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     });
   };
 
-  const handleCreateFolder = (parentPath?: string) => {
-    closeContextMenu();
-    
+  const handleCreateFolder = async (parentPath?: string) => {
     const targetPath = parentPath || currentFolder;
-    if (!targetPath) return;
-    
-    // Show the dialog
-    setNewFolderParentPath(targetPath);
-    setNewFolderName('');
-    setShowNewFolderDialog(true);
-    
-    // Focus the input after dialog opens
-    setTimeout(() => newFolderInputRef.current?.focus(), 100);
-  };
-
-  const handleCreateFolderConfirm = async () => {
-    if (!newFolderName.trim()) return;
+    if (!targetPath || !window.electronAPI?.dialog) return;
     
     try {
-      const result = await window.electronAPI?.file?.createFolder(newFolderParentPath, newFolderName.trim());
-      if (result?.success) {
-        // Close dialog
-        setShowNewFolderDialog(false);
-        setNewFolderName('');
-        
-        // Refresh folder contents using unified system
+      const result = await window.electronAPI.dialog.createFolder(targetPath);
+      
+      if (result.canceled) return;
+      
+      if (result.error) {
+        alert(`Failed to create folder: ${result.error}`);
+        return;
+      }
+      
+      // Refresh folder contents using unified system
+      if (currentFolder) {
         if (isTreeView) {
-          await loadTreeData(currentFolder!);
+          await loadTreeData(currentFolder);
         } else {
-          await loadFolderContents(currentFolder!);
+          await loadFolderContents(currentFolder);
         }
-        
-        // If we created in a subfolder, expand it to show the new folder
-        if (newFolderParentPath && newFolderParentPath !== currentFolder) {
-          setExpandedFolders(prev => new Set(prev).add(newFolderParentPath));
-        }
-      } else {
-        alert(`Failed to create folder: ${result?.error || 'Unknown error'}`);
+      }
+      
+      // If we created in a subfolder, expand it to show the new folder
+      if (targetPath && targetPath !== currentFolder) {
+        setExpandedFolders(prev => new Set(prev).add(targetPath));
       }
     } catch (error) {
       console.error('Failed to create folder:', error);
@@ -419,62 +384,40 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     }
   };
 
-  const handleCreateFolderCancel = () => {
-    setShowNewFolderDialog(false);
-    setNewFolderName('');
-  };
 
   // New Document handlers
-  const handleCreateDocument = (parentPath?: string) => {
-    closeContextMenu();
-    
+  const handleCreateDocument = async (parentPath?: string) => {
     const targetPath = parentPath || currentFolder;
-    if (!targetPath) return;
-    
-    // Show the dialog
-    setNewDocumentParentPath(targetPath);
-    setNewDocumentName('');
-    setShowNewDocumentDialog(true);
-    
-    // Focus the input after dialog opens
-    setTimeout(() => newDocumentInputRef.current?.focus(), 100);
-  };
-
-  const handleCreateDocumentConfirm = async () => {
-    if (!newDocumentName.trim()) return;
+    if (!targetPath || !window.electronAPI?.dialog) return;
     
     try {
-      // Add .md extension if not present
-      const fileName = newDocumentName.trim().endsWith('.md') 
-        ? newDocumentName.trim() 
-        : `${newDocumentName.trim()}.md`;
-        
-      const initialContent = `# ${newDocumentName.trim()}\n\n`;
+      const result = await window.electronAPI.dialog.createDocument(targetPath);
       
-      const result = await window.electronAPI?.file?.createFile(newDocumentParentPath, fileName, initialContent);
-      if (result?.success) {
-        // Close dialog
-        setShowNewDocumentDialog(false);
-        setNewDocumentName('');
-        
-        // Refresh folder contents using unified system
+      if (result.canceled) return;
+      
+      if (result.error) {
+        alert(`Failed to create document: ${result.error}`);
+        return;
+      }
+      
+      // Refresh folder contents using unified system
+      if (currentFolder) {
         if (isTreeView) {
-          await loadTreeData(currentFolder!);
+          await loadTreeData(currentFolder);
         } else {
-          await loadFolderContents(currentFolder!);
+          await loadFolderContents(currentFolder);
         }
-        
-        // Trigger tree view refresh
-        window.dispatchEvent(new CustomEvent('refreshFolderView'));
-        
-        // Optionally open the newly created file
-        if (result.filePath && onFileSelect) {
-          const content = await window.electronAPI?.file?.readFile(result.filePath);
-          setDocumentContent(content || initialContent);
-          setCurrentDocument(result.filePath);
-          setDocumentModified(false);
-          onFileSelect(result.filePath);
-        }
+      }
+      
+      // Trigger tree view refresh
+      window.dispatchEvent(new CustomEvent('refreshFolderView'));
+      
+      // Optionally open the newly created file
+      if (result.filePath && onFileSelect) {
+        setDocumentContent(result.content || '');
+        setCurrentDocument(result.filePath);
+        setDocumentModified(false);
+        onFileSelect(result.filePath);
       }
     } catch (error) {
       console.error('Failed to create document:', error);
@@ -482,10 +425,6 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     }
   };
 
-  const handleCreateDocumentCancel = () => {
-    setShowNewDocumentDialog(false);
-    setNewDocumentName('');
-  };
 
   // Drag & Drop handlers
   const handleDragStart = (e: React.DragEvent, item: FileItem) => {
@@ -658,14 +597,6 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     }
   };
 
-  // Close context menu when clicking outside
-  React.useEffect(() => {
-    const handleClick = () => closeContextMenu();
-    if (contextMenu.isVisible) {
-      document.addEventListener('click', handleClick);
-      return () => document.removeEventListener('click', handleClick);
-    }
-  }, [contextMenu.isVisible]);
 
   // Listen for rename events from menu/keyboard shortcuts
   React.useEffect(() => {
@@ -730,6 +661,35 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     window.addEventListener('createFolderInLibrary', handleCreateFolderInLibrary);
     return () => window.removeEventListener('createFolderInLibrary', handleCreateFolderInLibrary);
   }, [libraryFolder]);
+
+  // Listen for native context menu events
+  React.useEffect(() => {
+    if (!window.electronAPI?.contextMenu) return;
+
+    const unsubscribers = [
+      window.electronAPI.contextMenu.onNewFolder((parentPath: string) => {
+        handleCreateFolder(parentPath);
+      }),
+      window.electronAPI.contextMenu.onNewDocument((parentPath: string) => {
+        handleCreateDocument(parentPath);
+      }),
+      window.electronAPI.contextMenu.onRename((item: any) => {
+        handleRename(item);
+      }),
+      window.electronAPI.contextMenu.onDelete((item: any) => {
+        handleDelete(item);
+      }),
+      window.electronAPI.contextMenu.onOpenInRightPane((filePath: string) => {
+        if (openInRightPane) {
+          openInRightPane(filePath);
+        }
+      })
+    ];
+
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, [openInRightPane]);
 
   // Load tree data when current folder changes and set up file watching
   React.useEffect(() => {
@@ -1323,266 +1283,8 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
       )}
 
 
-      {/* Context Menu - shows only for actual items */}
-      {contextMenu.isVisible && contextMenu.item && (
-        <div
-          className={clsx(
-            'fixed z-50 min-w-48 py-1 rounded-lg shadow-lg border',
-            isDarkMode 
-              ? 'bg-kanagawa-ink4 border-kanagawa-ink5' 
-              : 'bg-white border-gray-200'
-          )}
-          style={{
-            left: contextMenu.x,
-            top: contextMenu.y,
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* New Folder - show only for folders */}
-          {contextMenu.item.isDirectory && (
-            <>
-              <button
-                onClick={() => handleCreateFolder(contextMenu.item!.path)}
-                className={clsx(
-                  'w-full flex items-center px-3 py-2 text-sm transition-colors text-left',
-                  isDarkMode
-                    ? 'text-kanagawa-oldwhite hover:bg-kanagawa-ink5'
-                    : 'text-gray-700 hover:bg-gray-50'
-                )}
-              >
-                <FolderPlusIcon className="h-4 w-4 mr-3" />
-                New Folder
-              </button>
-              
-              <button
-                onClick={() => handleCreateDocument(contextMenu.item!.path)}
-                className={clsx(
-                  'w-full flex items-center px-3 py-2 text-sm transition-colors text-left',
-                  isDarkMode
-                    ? 'text-kanagawa-oldwhite hover:bg-kanagawa-ink5'
-                    : 'text-gray-700 hover:bg-gray-50'
-                )}
-              >
-                <PlusIcon className="h-4 w-4 mr-3" />
-                New Document
-              </button>
-              
-              <div className={clsx(
-                'my-1 h-px',
-                isDarkMode ? 'bg-kanagawa-ink5' : 'bg-gray-200'
-              )} />
-            </>
-          )}
 
-          {/* Open in Right Pane - only for files in split screen mode */}
-          {isSplitScreenMode && !contextMenu.item.isDirectory && (
-            <button
-              onClick={async () => {
-                await openInRightPane(contextMenu.item!.path);
-                closeContextMenu();
-              }}
-              className={clsx(
-                'w-full flex items-center px-3 py-2 text-sm transition-colors text-left',
-                isDarkMode
-                  ? 'text-accent-blue hover:bg-kanagawa-ink5'
-                  : 'text-blue-600 hover:bg-blue-50'
-              )}
-            >
-              <DocumentTextIcon className="h-4 w-4 mr-3" />
-              Open in Right Pane
-            </button>
-          )}
-          
-          {/* Rename and Delete - always show for actual items */}
-          <button
-            onClick={() => handleRename(contextMenu.item!)}
-            className={clsx(
-              'w-full flex items-center px-3 py-2 text-sm transition-colors text-left',
-              isDarkMode
-                ? 'text-kanagawa-oldwhite hover:bg-kanagawa-ink5'
-                : 'text-gray-700 hover:bg-gray-50'
-            )}
-          >
-            <PencilIcon className="h-4 w-4 mr-3" />
-            Rename
-          </button>
-          
-          <button
-            onClick={() => handleDelete(contextMenu.item!)}
-            className={clsx(
-              'w-full flex items-center px-3 py-2 text-sm transition-colors text-left',
-              isDarkMode
-                ? 'text-red-400 hover:bg-red-900/20'
-                : 'text-red-600 hover:bg-red-50'
-            )}
-          >
-            <TrashIcon className="h-4 w-4 mr-3" />
-            Delete
-          </button>
-        </div>
-      )}
 
-      {/* New Folder Dialog */}
-      {showNewFolderDialog && (
-        <div className={clsx(
-          "fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm",
-          isDarkMode ? "bg-black/50" : "bg-black/30"
-        )}>
-          <div className={clsx(
-            'rounded-xl shadow-2xl p-6 w-96 max-w-[90vw] mx-4 border',
-            isDarkMode 
-              ? 'bg-kanagawa-ink3 text-kanagawa-oldwhite border-kanagawa-ink5' 
-              : 'bg-white text-gray-900 border-gray-200'
-          )}>
-            <h3 className={clsx(
-              'text-lg font-semibold mb-4',
-              isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-900'
-            )}>
-              New Folder
-            </h3>
-            
-            <div className="mb-6">
-              <label className={clsx(
-                'block text-sm font-medium mb-2',
-                isDarkMode ? 'text-kanagawa-gray' : 'text-gray-700'
-              )}>
-                Folder name:
-              </label>
-              <input
-                ref={newFolderInputRef}
-                type="text"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleCreateFolderConfirm();
-                  } else if (e.key === 'Escape') {
-                    handleCreateFolderCancel();
-                  }
-                }}
-                className={clsx(
-                  'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200',
-                  isDarkMode 
-                    ? 'bg-kanagawa-ink4 border-kanagawa-ink5 text-kanagawa-oldwhite placeholder-kanagawa-gray focus:ring-accent-blue focus:border-accent-blue' 
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-blue-500 focus:border-blue-500'
-                )}
-                placeholder="Enter folder name"
-              />
-            </div>
-            
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={handleCreateFolderCancel}
-                className={clsx(
-                  'px-4 py-2 text-sm font-medium rounded-lg transition-colors border',
-                  isDarkMode
-                    ? 'text-kanagawa-gray hover:text-kanagawa-oldwhite hover:bg-kanagawa-ink4 border-kanagawa-ink5'
-                    : 'text-gray-700 hover:bg-gray-50 border-gray-300 hover:border-gray-400'
-                )}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateFolderConfirm}
-                disabled={!newFolderName.trim()}
-                className={clsx(
-                  'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
-                  !newFolderName.trim()
-                    ? isDarkMode
-                      ? 'bg-kanagawa-ink5 text-kanagawa-gray cursor-not-allowed'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : isDarkMode
-                      ? 'bg-accent-blue hover:bg-blue-600 text-white shadow-lg'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'
-                )}
-              >
-                Create
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* New Document Dialog */}
-      {showNewDocumentDialog && (
-        <div className={clsx(
-          "fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm",
-          isDarkMode ? "bg-black/50" : "bg-black/30"
-        )}>
-          <div className={clsx(
-            'rounded-xl shadow-2xl p-6 w-96 max-w-[90vw] mx-4 border',
-            isDarkMode 
-              ? 'bg-kanagawa-ink3 text-kanagawa-oldwhite border-kanagawa-ink5' 
-              : 'bg-white text-gray-900 border-gray-200'
-          )}>
-            <h3 className={clsx(
-              'text-lg font-semibold mb-4',
-              isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-900'
-            )}>
-              New Document
-            </h3>
-            
-            <div className="mb-6">
-              <label className={clsx(
-                'block text-sm font-medium mb-2',
-                isDarkMode ? 'text-kanagawa-gray' : 'text-gray-700'
-              )}>
-                Document name:
-              </label>
-              <input
-                ref={newDocumentInputRef}
-                type="text"
-                value={newDocumentName}
-                onChange={(e) => setNewDocumentName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleCreateDocumentConfirm();
-                  } else if (e.key === 'Escape') {
-                    handleCreateDocumentCancel();
-                  }
-                }}
-                className={clsx(
-                  'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200',
-                  isDarkMode 
-                    ? 'bg-kanagawa-ink4 border-kanagawa-ink5 text-kanagawa-oldwhite placeholder-kanagawa-gray focus:ring-accent-blue focus:border-accent-blue' 
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-blue-500 focus:border-blue-500'
-                )}
-                placeholder="Enter document name (without .md)"
-              />
-            </div>
-            
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={handleCreateDocumentCancel}
-                className={clsx(
-                  'px-4 py-2 text-sm font-medium rounded-lg transition-colors border',
-                  isDarkMode
-                    ? 'text-kanagawa-gray hover:text-kanagawa-oldwhite hover:bg-kanagawa-ink4 border-kanagawa-ink5'
-                    : 'text-gray-700 hover:bg-gray-50 border-gray-300 hover:border-gray-400'
-                )}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateDocumentConfirm}
-                disabled={!newDocumentName.trim()}
-                className={clsx(
-                  'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
-                  !newDocumentName.trim()
-                    ? isDarkMode
-                      ? 'bg-kanagawa-ink5 text-kanagawa-gray cursor-not-allowed'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : isDarkMode
-                      ? 'bg-accent-blue hover:bg-blue-600 text-white shadow-lg'
-                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg'
-                )}
-              >
-                Create
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

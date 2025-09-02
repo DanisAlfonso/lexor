@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, subscribeWithSelector } from 'zustand/middleware';
+import { DocumentStats, calculateDocumentStats } from '../utils/wordCount';
 
 export type ViewType = 'editor' | 'flashcards' | 'study' | 'settings' | 'pdf';
 
@@ -25,6 +26,7 @@ export interface AppState {
   currentDocument: string | null;
   documentContent: string;
   isDocumentModified: boolean;
+  documentStats: DocumentStats;
 
   // PDF State
   currentPdfPath: string | null;
@@ -61,6 +63,13 @@ export interface AppState {
   fontFamily: string;
   showScrollbar: boolean;
   transparency: number; // 0-100, where 100 is opaque
+  // Auto-save settings
+  isAutoSaveEnabled: boolean;
+  autoSaveInterval: number; // in seconds
+  lastAutoSave: number | null; // timestamp
+  isAutoSaving: boolean; // for UI feedback
+  // Document stats settings
+  showDocumentStats: boolean;
   isSpellcheckEnabled: boolean;
   isGrammarCheckEnabled: boolean;
   grammarCheckLanguage: string;
@@ -128,6 +137,14 @@ export interface AppState {
   setGrammarCheckEnabled: (enabled: boolean) => void;
   toggleGrammarCheck: () => void;
   setGrammarCheckLanguage: (language: string) => void;
+  // Auto-save actions
+  setAutoSaveEnabled: (enabled: boolean) => void;
+  setAutoSaveInterval: (interval: number) => void;
+  triggerAutoSave: () => Promise<void>;
+  setIsAutoSaving: (saving: boolean) => void;
+  // Document stats actions
+  toggleDocumentStats: () => void;
+  setShowDocumentStats: (show: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -143,6 +160,14 @@ export const useAppStore = create<AppState>()(
       currentDocument: null,
       documentContent: '',
       isDocumentModified: false,
+      documentStats: {
+        words: 0,
+        characters: 0,
+        charactersNoSpaces: 0,
+        paragraphs: 0,
+        readingTimeMinutes: 0,
+        lines: 0,
+      },
 
       currentPdfPath: null,
 
@@ -173,6 +198,13 @@ export const useAppStore = create<AppState>()(
       fontFamily: 'SF Mono',
       showScrollbar: true,
       transparency: 100,
+      // Auto-save initial state
+      isAutoSaveEnabled: true,
+      autoSaveInterval: 30, // 30 seconds default
+      lastAutoSave: null,
+      isAutoSaving: false,
+      // Document stats initial state
+      showDocumentStats: true,
       isSpellcheckEnabled: false,
       isGrammarCheckEnabled: false,
       grammarCheckLanguage: 'auto',
@@ -233,9 +265,12 @@ export const useAppStore = create<AppState>()(
       
       setDocumentContent: (content) => {
         const state = get();
+        const documentStats = calculateDocumentStats(content);
+        
         set({ 
           documentContent: content,
-          isDocumentModified: true
+          isDocumentModified: true,
+          documentStats
         });
         
         // If both panes show the same document, keep modification state in sync
@@ -673,6 +708,45 @@ Happy writing!
       toggleGrammarCheck: () => set((state) => ({ isGrammarCheckEnabled: !state.isGrammarCheckEnabled })),
       setGrammarCheckLanguage: (language) => set({ grammarCheckLanguage: language }),
       
+      // Auto-save actions
+      setAutoSaveEnabled: (enabled) => set({ isAutoSaveEnabled: enabled }),
+      setAutoSaveInterval: (interval) => set({ autoSaveInterval: Math.max(5, Math.min(300, interval)) }), // 5-300 seconds
+      setIsAutoSaving: (saving) => set({ isAutoSaving: saving }),
+      
+      triggerAutoSave: async () => {
+        const state = get();
+        
+        // Only auto-save if enabled, document exists, is modified, and not already saving
+        if (!state.isAutoSaveEnabled || !state.currentDocument || !state.isDocumentModified || state.isAutoSaving) {
+          return;
+        }
+        
+        try {
+          set({ isAutoSaving: true });
+          
+          if (window.electronAPI?.file?.writeFile) {
+            await window.electronAPI.file.writeFile(state.currentDocument, state.documentContent);
+            set({ 
+              isDocumentModified: false,
+              lastAutoSave: Date.now(),
+              isAutoSaving: false
+            });
+            
+            // If split screen mode and both panes show same document, update right pane too
+            if (state.isSplitScreenMode && state.currentDocument === state.rightPaneDocument) {
+              set({ isRightPaneModified: false });
+            }
+          }
+        } catch (error) {
+          console.error('Auto-save failed:', error);
+          set({ isAutoSaving: false });
+        }
+      },
+      
+      // Document stats actions
+      toggleDocumentStats: () => set((state) => ({ showDocumentStats: !state.showDocumentStats })),
+      setShowDocumentStats: (show) => set({ showDocumentStats: show }),
+      
       setTransparency: (transparency) => {
         const clampedTransparency = Math.max(60, Math.min(100, transparency));
         set({ transparency: clampedTransparency });
@@ -706,6 +780,11 @@ Happy writing!
         splitRatio: state.splitRatio,
         showScrollbar: state.showScrollbar,
         transparency: state.transparency,
+        // Auto-save settings
+        isAutoSaveEnabled: state.isAutoSaveEnabled,
+        autoSaveInterval: state.autoSaveInterval,
+        // Document stats settings
+        showDocumentStats: state.showDocumentStats,
         isSpellcheckEnabled: state.isSpellcheckEnabled,
         isGrammarCheckEnabled: state.isGrammarCheckEnabled,
         grammarCheckLanguage: state.grammarCheckLanguage,

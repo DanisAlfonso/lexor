@@ -31,6 +31,8 @@ export function useMenuHandlers() {
     isSplitScreenMode,
     // Scrollbar toggle
     toggleScrollbar,
+    // Document stats toggle
+    toggleDocumentStats,
   } = useAppStore();
 
   const { currentSession, discoverAndSyncLibrary } = useFlashcardStore();
@@ -305,6 +307,10 @@ export function useMenuHandlers() {
       window.dispatchEvent(new CustomEvent('switchFlashcardView', { detail: { viewMode } }));
     };
 
+    const handleToggleDocumentStats = () => {
+      toggleDocumentStats();
+    };
+
     const handleRenameSelected = () => {
       if (!selectedItem) {
         console.warn('No item selected for rename');
@@ -393,6 +399,7 @@ export function useMenuHandlers() {
       window.electronAPI.menu.onSwapPanes(handleSwapPanes),
       window.electronAPI.menu.onToggleScrollbar(handleToggleScrollbar),
       window.electronAPI.menu.onSwitchFlashcardView(handleSwitchFlashcardView),
+      window.electronAPI.menu.onToggleDocumentStats(handleToggleDocumentStats),
     ];
 
     // Cleanup function
@@ -425,6 +432,7 @@ export function useMenuHandlers() {
     swapPanes,
     isSplitScreenMode,
     toggleScrollbar,
+    toggleDocumentStats,
     discoverAndSyncLibrary,
   ]);
 }
