@@ -5,15 +5,18 @@ import { createMenu, updateMenuState, setupWindowResizeTracking } from './menu';
 import { WindowManager } from './windows';
 import { watch, FSWatcher } from 'chokidar';
 import { FlashcardDatabase } from './database';
+import { LanguageToolServer } from './languageToolServer';
 
 class LexorApp {
   private windowManager: WindowManager;
   private isDevelopment = process.env.NODE_ENV === 'development';
   private folderWatchers: Map<string, FSWatcher> = new Map();
   private database: FlashcardDatabase | null = null;
+  private languageToolServer: LanguageToolServer;
 
   constructor() {
     this.windowManager = new WindowManager();
+    this.languageToolServer = new LanguageToolServer();
     this.initializeApp();
   }
 
@@ -60,6 +63,13 @@ class LexorApp {
         } catch (error) {
           console.error('Failed to close database:', error);
         }
+      }
+      
+      // Stop LanguageTool server
+      try {
+        await this.languageToolServer.stopServer();
+      } catch (error) {
+        console.error('Failed to stop LanguageTool server:', error);
       }
     });
 
@@ -752,6 +762,69 @@ Happy creating!
         console.error('File buffer read error:', error);
         throw error;
       }
+    });
+
+    // LanguageTool handlers
+    ipcMain.handle('languagetool:checkJava', async () => {
+      try {
+        return await this.languageToolServer.checkJavaInstalled();
+      } catch (error: any) {
+        console.error('Java check error:', error);
+        return { installed: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('languagetool:initialize', async () => {
+      try {
+        return await this.languageToolServer.initializeServer();
+      } catch (error: any) {
+        console.error('LanguageTool initialization error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('languagetool:start', async () => {
+      try {
+        return await this.languageToolServer.startServer();
+      } catch (error: any) {
+        console.error('LanguageTool start error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('languagetool:stop', async () => {
+      try {
+        await this.languageToolServer.stopServer();
+        return { success: true };
+      } catch (error: any) {
+        console.error('LanguageTool stop error:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('languagetool:check', async (_, text: string, language = 'auto') => {
+      try {
+        return await this.languageToolServer.checkText(text, language);
+      } catch (error: any) {
+        console.error('LanguageTool check error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('languagetool:languages', async () => {
+      try {
+        return await this.languageToolServer.getSupportedLanguages();
+      } catch (error: any) {
+        console.error('LanguageTool languages error:', error);
+        throw error;
+      }
+    });
+
+    ipcMain.handle('languagetool:status', async () => {
+      return {
+        running: this.languageToolServer.isRunning(),
+        url: this.languageToolServer.getServerUrl()
+      };
     });
   }
 

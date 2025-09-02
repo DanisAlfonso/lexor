@@ -6,6 +6,7 @@ import { Extension } from '@codemirror/state';
 import { keymap } from '@codemirror/view';
 import { useAppStore } from '../stores/appStore';
 import { conditionalLivePreview, toggleLivePreview } from '../extensions/livePreview';
+import { createGrammarCheckExtension } from '../extensions/grammarCheck';
 import { SplitScreenEditor, SplitScreenEditorRef } from './SplitScreenEditor';
 import { SinglePaneEditor, SinglePaneEditorRef } from './SinglePaneEditor';
 import { formatFontFamily } from '../utils/editorUtils';
@@ -68,7 +69,11 @@ export function MarkdownEditor() {
     setLivePreviewEnabled,
     // Spellcheck state
     isSpellcheckEnabled,
-    toggleSpellcheck
+    toggleSpellcheck,
+    // Grammar check state
+    isGrammarCheckEnabled,
+    toggleGrammarCheck,
+    grammarCheckLanguage
   } = useAppStore();
 
   // Handle menu-triggered live preview toggle
@@ -255,6 +260,14 @@ export function MarkdownEditor() {
         toggleSpellcheck();
         return true;
       }
+    },
+    // Grammar check toggle (Cmd+Shift+G)
+    {
+      key: 'Mod-Shift-g',
+      run: () => {
+        toggleGrammarCheck();
+        return true;
+      }
     }
   ]);
 
@@ -266,6 +279,8 @@ export function MarkdownEditor() {
     keyboardShortcuts,
     // Enable native browser spellcheck when enabled
     ...(isSpellcheckEnabled ? [EditorView.contentAttributes.of({ spellcheck: "true" })] : []),
+    // Enable grammar checking when enabled
+    createGrammarCheckExtension(isGrammarCheckEnabled),
     // Combine all theme styles into one extension to prevent conflicts
     EditorView.theme({
       '&': { 

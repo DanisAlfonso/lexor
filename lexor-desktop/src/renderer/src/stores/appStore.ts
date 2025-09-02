@@ -62,6 +62,8 @@ export interface AppState {
   showScrollbar: boolean;
   transparency: number; // 0-100, where 100 is opaque
   isSpellcheckEnabled: boolean;
+  isGrammarCheckEnabled: boolean;
+  grammarCheckLanguage: string;
   
   // Actions
   setCurrentView: (view: ViewType) => void;
@@ -123,6 +125,9 @@ export interface AppState {
   setTransparency: (transparency: number) => void;
   setSpellcheckEnabled: (enabled: boolean) => void;
   toggleSpellcheck: () => void;
+  setGrammarCheckEnabled: (enabled: boolean) => void;
+  toggleGrammarCheck: () => void;
+  setGrammarCheckLanguage: (language: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -169,6 +174,8 @@ export const useAppStore = create<AppState>()(
       showScrollbar: true,
       transparency: 100,
       isSpellcheckEnabled: false,
+      isGrammarCheckEnabled: false,
+      grammarCheckLanguage: 'auto',
       
       // Actions
       setCurrentView: (view) => set({ currentView: view }),
@@ -662,6 +669,10 @@ Happy writing!
       setSpellcheckEnabled: (enabled) => set({ isSpellcheckEnabled: enabled }),
       toggleSpellcheck: () => set((state) => ({ isSpellcheckEnabled: !state.isSpellcheckEnabled })),
       
+      setGrammarCheckEnabled: (enabled) => set({ isGrammarCheckEnabled: enabled }),
+      toggleGrammarCheck: () => set((state) => ({ isGrammarCheckEnabled: !state.isGrammarCheckEnabled })),
+      setGrammarCheckLanguage: (language) => set({ grammarCheckLanguage: language }),
+      
       setTransparency: (transparency) => {
         const clampedTransparency = Math.max(60, Math.min(100, transparency));
         set({ transparency: clampedTransparency });
@@ -696,6 +707,8 @@ Happy writing!
         showScrollbar: state.showScrollbar,
         transparency: state.transparency,
         isSpellcheckEnabled: state.isSpellcheckEnabled,
+        isGrammarCheckEnabled: state.isGrammarCheckEnabled,
+        grammarCheckLanguage: state.grammarCheckLanguage,
       }),
     })
   )

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../stores/appStore';
 import { useStudySettingsStore } from '../stores/studySettingsStore';
+import { GrammarService } from '../services/grammarService';
 import { clsx } from 'clsx';
 import { BookOpenIcon, FolderIcon, AcademicCapIcon, ClockIcon } from '@heroicons/react/24/outline';
 
@@ -11,11 +12,17 @@ export function Settings() {
     lineHeight,
     fontFamily,
     transparency,
+    isSpellcheckEnabled,
+    isGrammarCheckEnabled,
+    grammarCheckLanguage,
     setTheme,
     setFontSize,
     setLineHeight,
     setFontFamily,
     setTransparency,
+    setSpellcheckEnabled,
+    setGrammarCheckEnabled,
+    setGrammarCheckLanguage,
     libraryFolder,
     setLibraryFolder,
   } = useAppStore();
@@ -601,6 +608,9 @@ export function Settings() {
           </div>
         </div>
 
+        {/* Language Tools */}
+        <LanguageToolsSection />
+
         {/* Lexor Library */}
         <div className={clsx(
           'p-6 mb-6 rounded-xl shadow-sm border',
@@ -693,6 +703,256 @@ export function Settings() {
           </div>
         </div>
 
+      </div>
+    </div>
+  );
+}
+
+function LanguageToolsSection() {
+  const {
+    theme,
+    isSpellcheckEnabled,
+    isGrammarCheckEnabled,
+    grammarCheckLanguage,
+    setSpellcheckEnabled,
+    setGrammarCheckEnabled,
+    setGrammarCheckLanguage,
+  } = useAppStore();
+  
+  const [grammarServiceStatus, setGrammarServiceStatus] = useState<any>(null);
+  const [supportedLanguages, setSupportedLanguages] = useState<any[]>([]);
+  const isDarkMode = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  
+  useEffect(() => {
+    const checkGrammarService = async () => {
+      try {
+        const grammarService = GrammarService.getInstance();
+        const status = await grammarService.getStatus();
+        setGrammarServiceStatus(status);
+        
+        if (status.initialized && status.serverRunning) {
+          try {
+            const languages = await grammarService.getSupportedLanguages();
+            setSupportedLanguages(languages);
+          } catch (error) {
+            console.error('Failed to get supported languages:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check grammar service:', error);
+      }
+    };
+    
+    checkGrammarService();
+  }, [isGrammarCheckEnabled]);
+
+  return (
+    <div className={clsx(
+      'p-6 mb-6 rounded-xl shadow-sm border',
+      isDarkMode 
+        ? 'bg-kanagawa-ink4 border-kanagawa-ink5' 
+        : 'bg-white border-gray-200'
+    )}>
+      <h2 className={clsx(
+        'text-xl font-semibold mb-4',
+        isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+      )}>
+        Language Tools
+      </h2>
+      
+      <div className="space-y-6">
+        {/* Spell Check */}
+        <div>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className={clsx(
+                'text-sm font-medium',
+                isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+              )}>
+                Spell Check
+              </h3>
+              <p className={clsx(
+                'text-xs mt-1',
+                isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+              )}>
+                Uses your system's built-in spell checker
+              </p>
+            </div>
+            <button
+              onClick={() => setSpellcheckEnabled(!isSpellcheckEnabled)}
+              className={clsx(
+                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2',
+                isSpellcheckEnabled
+                  ? 'bg-accent-blue focus:ring-accent-blue'
+                  : isDarkMode 
+                    ? 'bg-kanagawa-ink5 focus:ring-kanagawa-ink6' 
+                    : 'bg-gray-200 focus:ring-gray-300'
+              )}
+            >
+              <span
+                className={clsx(
+                  'inline-block h-4 w-4 transform rounded-full bg-white transition',
+                  isSpellcheckEnabled ? 'translate-x-6' : 'translate-x-1'
+                )}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Grammar Check */}
+        <div>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className={clsx(
+                'text-sm font-medium',
+                isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+              )}>
+                Grammar Check
+              </h3>
+              <p className={clsx(
+                'text-xs mt-1',
+                isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+              )}>
+                {grammarServiceStatus?.serverRunning 
+                  ? 'Advanced grammar checking with LanguageTool' 
+                  : 'Requires Java and LanguageTool setup'
+                }
+              </p>
+            </div>
+            <button
+              onClick={() => setGrammarCheckEnabled(!isGrammarCheckEnabled)}
+              disabled={!grammarServiceStatus?.initialized || !grammarServiceStatus?.serverRunning}
+              className={clsx(
+                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2',
+                isGrammarCheckEnabled && grammarServiceStatus?.serverRunning
+                  ? 'bg-accent-blue focus:ring-accent-blue'
+                  : isDarkMode 
+                    ? 'bg-kanagawa-ink5 focus:ring-kanagawa-ink6' 
+                    : 'bg-gray-200 focus:ring-gray-300',
+                (!grammarServiceStatus?.initialized || !grammarServiceStatus?.serverRunning) && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              <span
+                className={clsx(
+                  'inline-block h-4 w-4 transform rounded-full bg-white transition',
+                  isGrammarCheckEnabled && grammarServiceStatus?.serverRunning ? 'translate-x-6' : 'translate-x-1'
+                )}
+              />
+            </button>
+          </div>
+
+          {/* Language Selection */}
+          {isGrammarCheckEnabled && supportedLanguages.length > 0 && (
+            <div className="mt-4">
+              <label className={clsx(
+                'block text-sm font-medium mb-2',
+                isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+              )}>
+                Grammar Check Language
+              </label>
+              <select
+                value={grammarCheckLanguage}
+                onChange={(e) => setGrammarCheckLanguage(e.target.value)}
+                className={clsx(
+                  'block w-full rounded-md border focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent',
+                  isDarkMode 
+                    ? 'border-kanagawa-ink5 bg-kanagawa-ink5 text-kanagawa-white' 
+                    : 'border-gray-300 bg-white text-gray-900'
+                )}
+              >
+                <option value="auto">Auto-detect</option>
+                {supportedLanguages.map((lang, index) => (
+                  <option key={`${lang.code}-${index}`} value={lang.code}>
+                    {lang.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* Status Information */}
+        {grammarServiceStatus && (
+          <div className={clsx(
+            'p-4 rounded-lg border',
+            grammarServiceStatus.serverRunning
+              ? isDarkMode 
+                ? 'bg-emerald-900/20 border-emerald-800' 
+                : 'bg-emerald-50 border-emerald-200'
+              : isDarkMode
+                ? 'bg-yellow-900/20 border-yellow-800'
+                : 'bg-yellow-50 border-yellow-200'
+          )}>
+            <div className="flex items-start">
+              <div className={clsx(
+                'h-2 w-2 rounded-full mt-1.5 mr-3',
+                grammarServiceStatus.serverRunning
+                  ? isDarkMode ? 'bg-emerald-400' : 'bg-emerald-500'
+                  : isDarkMode ? 'bg-yellow-400' : 'bg-yellow-500'
+              )} />
+              <div>
+                <h4 className={clsx(
+                  'text-sm font-medium mb-1',
+                  grammarServiceStatus.serverRunning
+                    ? isDarkMode ? 'text-emerald-400' : 'text-emerald-700'
+                    : isDarkMode ? 'text-yellow-400' : 'text-yellow-700'
+                )}>
+                  {grammarServiceStatus.serverRunning ? 'Grammar Service: Running' : 'Grammar Service: Not Available'}
+                </h4>
+                <p className={clsx(
+                  'text-xs',
+                  grammarServiceStatus.serverRunning
+                    ? isDarkMode ? 'text-emerald-300' : 'text-emerald-600'
+                    : isDarkMode ? 'text-yellow-300' : 'text-yellow-600'
+                )}>
+                  {grammarServiceStatus.serverRunning 
+                    ? 'LanguageTool server is running and ready to check your text'
+                    : grammarServiceStatus.error || 'Java is required to enable grammar checking'
+                  }
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Keyboard Shortcuts */}
+        <div className={clsx(
+          'p-3 rounded-lg',
+          isDarkMode ? 'bg-kanagawa-ink5' : 'bg-gray-50'
+        )}>
+          <h4 className={clsx(
+            'text-sm font-medium mb-2',
+            isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+          )}>
+            Keyboard Shortcuts
+          </h4>
+          <div className="space-y-1 text-xs">
+            <div className={clsx(
+              'flex justify-between',
+              isDarkMode ? 'text-kanagawa-gray' : 'text-gray-600'
+            )}>
+              <span>Toggle Spell Check</span>
+              <code className={clsx(
+                'px-2 py-1 rounded',
+                isDarkMode ? 'bg-kanagawa-ink4 text-kanagawa-oldwhite' : 'bg-gray-200 text-gray-800'
+              )}>
+                ⌘+Shift+;
+              </code>
+            </div>
+            <div className={clsx(
+              'flex justify-between',
+              isDarkMode ? 'text-kanagawa-gray' : 'text-gray-600'
+            )}>
+              <span>Toggle Grammar Check</span>
+              <code className={clsx(
+                'px-2 py-1 rounded',
+                isDarkMode ? 'bg-kanagawa-ink4 text-kanagawa-oldwhite' : 'bg-gray-200 text-gray-800'
+              )}>
+                ⌘+Shift+G
+              </code>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

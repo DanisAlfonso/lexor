@@ -229,6 +229,17 @@ const electronAPI = {
       ipcRenderer.invoke('database:createDeckFromFilePath', filePath, libraryPath),
   },
 
+  // LanguageTool operations
+  languageTool: {
+    checkJava: () => ipcRenderer.invoke('languagetool:checkJava'),
+    initialize: () => ipcRenderer.invoke('languagetool:initialize'),
+    start: () => ipcRenderer.invoke('languagetool:start'),
+    stop: () => ipcRenderer.invoke('languagetool:stop'),
+    check: (text: string, language?: string) => ipcRenderer.invoke('languagetool:check', text, language),
+    getSupportedLanguages: () => ipcRenderer.invoke('languagetool:languages'),
+    getStatus: () => ipcRenderer.invoke('languagetool:status'),
+  },
+
   // Platform information
   platform: {
     isMac: process.platform === 'darwin',
