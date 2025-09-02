@@ -5,6 +5,39 @@ import { useAppStore } from '../stores/appStore';
 // Configure PDF.js worker - use local copy for offline operation
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
+// Utility functions for PDF position persistence
+const getPDFPositionKey = (pdfPath: string) => `pdf-position-${pdfPath}`;
+
+const savePDFPosition = (pdfPath: string, page: number, totalPages: number) => {
+  try {
+    const positionData = {
+      page,
+      totalPages,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(getPDFPositionKey(pdfPath), JSON.stringify(positionData));
+  } catch (error) {
+    console.warn('Failed to save PDF position:', error);
+  }
+};
+
+const loadPDFPosition = (pdfPath: string) => {
+  try {
+    const saved = localStorage.getItem(getPDFPositionKey(pdfPath));
+    if (saved) {
+      const positionData = JSON.parse(saved);
+      // Only restore if the data is less than 30 days old
+      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+      if (positionData.timestamp > thirtyDaysAgo) {
+        return positionData;
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to load PDF position:', error);
+  }
+  return null;
+};
+
 interface PDFViewerProps {
   pdfPath: string;
 }
@@ -87,7 +120,15 @@ export function PDFViewer({ pdfPath }: PDFViewerProps) {
         
         setPdfDoc(pdf);
         setTotalPages(pdf.numPages);
-        setCurrentPage(1);
+        
+        // Try to restore last page position
+        const savedPosition = loadPDFPosition(pdfPath);
+        if (savedPosition && savedPosition.page <= pdf.numPages) {
+          // Only restore if the saved page is valid for this PDF
+          setCurrentPage(savedPosition.page);
+        } else {
+          setCurrentPage(1);
+        }
       } catch (err) {
         console.error('Error loading PDF:', err);
         setError('Failed to load PDF document');
@@ -325,6 +366,18 @@ export function PDFViewer({ pdfPath }: PDFViewerProps) {
       y: prevOffset.y * 0.8
     }));
   }, [scale]);
+
+  // Save current page position whenever it changes
+  useEffect(() => {
+    if (pdfPath && currentPage && totalPages) {
+      // Debounce saving to avoid excessive localStorage writes
+      const timeoutId = setTimeout(() => {
+        savePDFPosition(pdfPath, currentPage, totalPages);
+      }, 500); // Wait 500ms after last page change
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [pdfPath, currentPage, totalPages]);
 
   if (isLoading) {
     return (
