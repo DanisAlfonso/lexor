@@ -2002,14 +2002,14 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
               continue;
             }
             
-            // Collapse empty lines to reduce spacing
+            // Render empty lines as proper line breaks with normal spacing
             if (lineText.trim() === '') {
               decorations.push({ 
                 from: line.from, 
                 to: line.from,
                 decoration: Decoration.line({
                   attributes: {
-                    style: 'height: 0; overflow: hidden; line-height: 0; font-size: 0; margin: 0; padding: 0;'
+                    style: `height: ${lineHeight}rem; margin: 0; padding: 0;`
                   }
                 })
               });
