@@ -1,3 +1,5 @@
+import { PersonalDictionary } from './personalDictionary';
+
 export interface GrammarMatch {
   message: string;
   shortMessage: string;
@@ -129,16 +131,19 @@ export class GrammarService {
     try {
       const result = await window.electronAPI.languageTool.check(text, language);
       
-      // Cache the result
+      // Filter out ignored words
+      const filteredResult = this.filterIgnoredWords(result, text);
+      
+      // Cache the filtered result
       this.checkCache.set(cacheKey, {
-        result,
+        result: filteredResult,
         timestamp: Date.now()
       });
 
       // Clean old cache entries
       this.cleanCache();
 
-      return result;
+      return filteredResult;
     } catch (error: any) {
       console.error('Grammar check failed:', error);
       throw new Error(`Grammar check failed: ${error.message}`);
@@ -196,8 +201,36 @@ export class GrammarService {
     }
   }
 
+  private filterIgnoredWords(result: GrammarCheckResponse, originalText: string): GrammarCheckResponse {
+    const dictionary = PersonalDictionary.getInstance();
+    
+    // Filter out matches where the flagged word is in the personal dictionary
+    const filteredMatches = result.matches.filter(match => {
+      // Extract the actual word from the original text using the match offset and length
+      const flaggedWord = originalText.substring(match.offset, match.offset + match.length);
+      
+      // Check if this word is in the ignored words list
+      const isIgnored = dictionary.isWordIgnored(flaggedWord);
+      
+      // Keep the match if it's NOT ignored (return true to keep, false to filter out)
+      return !isIgnored;
+    });
+
+    return {
+      ...result,
+      matches: filteredMatches
+    };
+  }
+
   clearCache(): void {
     this.checkCache.clear();
+  }
+
+  /**
+   * Clear cache and force re-check after dictionary changes
+   */
+  invalidateCache(): void {
+    this.clearCache();
   }
 
   // Static method to check text without creating/maintaining instance

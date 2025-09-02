@@ -7,6 +7,7 @@ import { keymap } from '@codemirror/view';
 import { useAppStore } from '../stores/appStore';
 import { conditionalLivePreview, toggleLivePreview } from '../extensions/livePreview';
 import { createGrammarCheckExtension } from '../extensions/grammarCheck';
+import { createHangingIndentExtension } from '../extensions/hangingIndent';
 import { SplitScreenEditor, SplitScreenEditorRef } from './SplitScreenEditor';
 import { SinglePaneEditor, SinglePaneEditorRef } from './SinglePaneEditor';
 import { formatFontFamily } from '../utils/editorUtils';
@@ -276,6 +277,7 @@ export function MarkdownEditor() {
     EditorView.lineWrapping, // This is the key for proper responsive wrapping!
     createMarkdownHighlighting(isDarkMode),
     conditionalLivePreview(isDarkMode, lineHeight),
+    createHangingIndentExtension(), // Add hanging indent for markdown lists
     keyboardShortcuts,
     // Enable native browser spellcheck when enabled
     ...(isSpellcheckEnabled ? [EditorView.contentAttributes.of({ spellcheck: "true" })] : []),
@@ -367,6 +369,16 @@ export function MarkdownEditor() {
       // Override any CodeMirror default syntax highlighting colors
       '& .ͼc': {
         color: `${isDarkMode ? '#a292a3' : '#a292a3'} !important` // Use your theme's purple color instead of default blue
+      },
+      // Hanging indent styles for markdown lists
+      '.hanging-indent': {
+        textIndent: 'calc(-1ch * var(--hanging-indent-chars))',
+        paddingLeft: 'calc(1ch * var(--hanging-indent-chars))',
+        // Ensure wrapped lines maintain the indent
+        '&.cm-line': {
+          textIndent: 'calc(-1ch * var(--hanging-indent-chars))',
+          paddingLeft: 'calc(1ch * var(--hanging-indent-chars))'
+        }
       }
     }, { dark: isDarkMode })
   ];

@@ -1,6 +1,7 @@
 import { Extension, StateField, StateEffect, Range } from '@codemirror/state';
 import { EditorView, Decoration, DecorationSet, ViewUpdate, ViewPlugin, showTooltip, Tooltip, hoverTooltip } from '@codemirror/view';
 import { GrammarService, GrammarMatch } from '../services/grammarService';
+import { PersonalDictionary } from '../services/personalDictionary';
 
 // Define the grammar error decoration
 const grammarErrorDecoration = Decoration.mark({
@@ -240,6 +241,64 @@ const createGrammarTooltip = (match: GrammarMatch, view?: EditorView): HTMLEleme
     });
     tooltip.appendChild(suggestions);
   }
+
+  // Add to dictionary button
+  const actionsDiv = document.createElement('div');
+  actionsDiv.style.cssText = 'margin-top: 8px; border-top: 1px solid #4a5568; padding-top: 8px;';
+  
+  const ignoreButton = document.createElement('button');
+  ignoreButton.style.cssText = `
+    background: #4c51bf;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    margin-right: 8px;
+    transition: background 0.2s;
+  `;
+  ignoreButton.textContent = 'Add to Dictionary';
+  
+  ignoreButton.addEventListener('mouseenter', () => {
+    ignoreButton.style.background = '#5a67d8';
+  });
+  
+  ignoreButton.addEventListener('mouseleave', () => {
+    ignoreButton.style.background = '#4c51bf';
+  });
+  
+  // Get the actual word from the context
+  const contextText = match.context?.text;
+  const errorWord = contextText 
+    ? contextText.substring(match.context.offset, match.context.offset + match.context.length).trim()
+    : '';
+  
+  ignoreButton.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!errorWord || !view) return;
+    
+    // Add word to personal dictionary
+    const dictionary = PersonalDictionary.getInstance();
+    dictionary.addIgnoredWord(errorWord);
+    
+    // Clear the grammar service cache to force re-check
+    const grammarService = GrammarService.getInstance();
+    grammarService.invalidateCache();
+    
+    // Clear grammar errors and re-check to update the display
+    view.dispatch({
+      effects: [clearGrammarErrors.of()]
+    });
+    
+    // Optional: Show a brief confirmation
+    console.log(`Added "${errorWord}" to personal dictionary`);
+  });
+  
+  actionsDiv.appendChild(ignoreButton);
+  tooltip.appendChild(actionsDiv);
 
   // Rule info
   if (match.rule) {

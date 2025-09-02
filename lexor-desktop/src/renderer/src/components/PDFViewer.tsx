@@ -3,7 +3,17 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { useAppStore } from '../stores/appStore';
 
 // Configure PDF.js worker - use local copy for offline operation
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+if (process.env.NODE_ENV === 'development') {
+  // Development: use dev server path
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+} else {
+  // Production: use worker from the pdfjs-dist package
+  // This creates a data URL from the worker code, avoiding file path issues
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url
+  ).toString();
+}
 
 // Utility functions for PDF position persistence
 const getPDFPositionKey = (pdfPath: string) => `pdf-position-${pdfPath}`;
