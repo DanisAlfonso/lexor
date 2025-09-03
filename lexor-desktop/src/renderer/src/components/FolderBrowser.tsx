@@ -1144,7 +1144,7 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
   const breadcrumbs = getBreadcrumbs();
 
   return (
-    <div>
+    <div className="h-full flex flex-col">
 
       {/* Premium Breadcrumb Navigation */}
       <div className={clsx(
@@ -1251,12 +1251,9 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
       {!isLoadingFolder && (
         <div 
           className={clsx(
-            "py-2 overflow-y-auto transition-all duration-200",
+            "py-2 overflow-y-auto transition-all duration-200 flex-1",
             dropTarget === currentFolder && "bg-blue-500/10 ring-2 ring-blue-500 ring-inset rounded-lg"
           )}
-          style={{ 
-            maxHeight: 'calc(100vh - 280px)' // Dynamic height based on viewport, accounting for nav + breadcrumbs
-          }}
           onDragOver={(e) => handleDragOver(e)}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e)}

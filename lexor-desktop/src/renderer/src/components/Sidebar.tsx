@@ -86,7 +86,7 @@ export function Sidebar() {
 
   return (
     <div className={clsx(
-      'fixed left-0 top-0 h-full transition-all duration-300 z-10 w-64',
+      'fixed left-0 top-0 h-full transition-all duration-300 z-10 w-64 flex flex-col',
       sidebarCollapsed ? '-translate-x-full' : 'translate-x-0',
       // Account for macOS title bar
       window.electronAPI?.platform.isMac ? 'pt-12' : 'pt-0',
@@ -98,7 +98,7 @@ export function Sidebar() {
     )}>
 
       {/* Navigation */}
-      <nav className="mt-4 px-2">
+      <nav className="mt-4 px-2 flex-shrink-0">
         <ul className="space-y-1">
           {navigationItems.map((item) => {
             const Icon = item.icon;
@@ -131,14 +131,16 @@ export function Sidebar() {
 
       {/* Folder Browser */}
       {currentFolder && (
-        <div className="mt-8">
+        <div className="mt-8 flex-1 flex flex-col min-h-0">
           <h3 className={clsx(
-            "text-xs font-semibold uppercase tracking-wide mb-3 px-4",
+            "text-xs font-semibold uppercase tracking-wide mb-3 px-4 flex-shrink-0",
             isDarkMode ? "text-kanagawa-gray" : "text-gray-500"
           )}>
             Folder Browser
           </h3>
-          <FolderBrowser onFileSelect={handleFileSelect} />
+          <div className="flex-1 min-h-0">
+            <FolderBrowser onFileSelect={handleFileSelect} />
+          </div>
         </div>
       )}
 
