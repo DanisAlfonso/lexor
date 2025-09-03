@@ -115,6 +115,36 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     }
   };
 
+  // New function to recursively refresh the tree while preserving expanded state
+  const refreshTreeWithExpandedState = async (folderPath: string, expandedPaths: Set<string>) => {
+    try {
+      // Recursive function to load tree data with expanded children
+      const loadTreeRecursive = async (currentPath: string): Promise<FileItem[]> => {
+        const items = await window.electronAPI?.folder?.readDirectory(currentPath, false);
+        if (!items) return [];
+        
+        const result: FileItem[] = [];
+        for (const item of items) {
+          if (item.isDirectory && expandedPaths.has(item.path)) {
+            // This folder is expanded, so load its children recursively
+            const children = await loadTreeRecursive(item.path);
+            result.push({ ...item, children });
+          } else {
+            result.push(item);
+          }
+        }
+        
+        return result;
+      };
+      
+      const newTreeData = await loadTreeRecursive(folderPath);
+      setTreeData(newTreeData);
+      setCurrentFolder(folderPath);
+    } catch (error) {
+      console.error('Failed to refresh tree with expanded state:', error);
+    }
+  };
+
   const toggleFolderExpanded = async (folderPath: string) => {
     const newExpandedFolders = new Set(expandedFolders);
     
@@ -531,28 +561,42 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
 
   const handleDrop = async (e: React.DragEvent, targetItem?: FileItem) => {
     e.preventDefault();
+    e.stopPropagation();
     
     if (!draggedItem) return;
     
     const targetPath = targetItem?.isDirectory ? targetItem.path : currentFolder;
     if (!targetPath) return;
     
+    // Immediately clear draggedItem to prevent double processing
+    const itemBeingMoved = { ...draggedItem };
+    setDraggedItem(null);
+    
     // Don't drop on itself
-    if (draggedItem.path === targetPath) {
+    if (itemBeingMoved.path === targetPath) {
       handleDragEnd();
       return;
     }
     
-    // Don't drop into its own parent (same directory)
-    const draggedParent = draggedItem.path.split('/').slice(0, -1).join('/');
+    // Calculate the new path that would result from this move
+    const newPath = `${targetPath}/${itemBeingMoved.name}`;
+    
+    // Don't move if the file would end up in the same location
+    if (itemBeingMoved.path === newPath) {
+      handleDragEnd();
+      return;
+    }
+    
+    // Don't drop into its own parent (same directory) - but only for the actual parent
+    const draggedParent = itemBeingMoved.path.split('/').slice(0, -1).join('/');
     if (draggedParent === targetPath) {
       handleDragEnd();
       return;
     }
     
     // Don't drop a folder into its own child (would create infinite loop)
-    if (draggedItem.isDirectory && targetPath.startsWith(draggedItem.path + '/')) {
-      alert(`Cannot move folder "${draggedItem.name}" into its own subfolder`);
+    if (itemBeingMoved.isDirectory && targetPath.startsWith(itemBeingMoved.path + '/')) {
+      alert(`Cannot move folder "${itemBeingMoved.name}" into its own subfolder`);
       handleDragEnd();
       return;
     }
@@ -564,34 +608,112 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     }
     
     try {
-      const newPath = `${targetPath}/${draggedItem.name}`;
-      const result = await window.electronAPI?.file?.move(draggedItem.path, newPath);
+      const result = await window.electronAPI?.file?.move(itemBeingMoved.path, newPath);
       
       if (result?.success) {
         // Update current document path if the moved file was open
-        if (currentDocument === draggedItem.path) {
-          setCurrentDocument(result.newPath);
+        if (currentDocument === itemBeingMoved.path) {
+          setCurrentDocument(result.newPath || newPath);
         }
         
         // Clear selected item if it was moved
-        if (selectedItem?.path === draggedItem.path) {
+        if (selectedItem?.path === itemBeingMoved.path) {
           setSelectedItem(null);
         }
         
-        // Refresh folder contents
-        if (currentFolder) {
-          if (isTreeView) {
-            await loadTreeData(currentFolder);
-          } else {
-            await loadFolderContents(currentFolder);
-          }
+        // In tree view, we need to refresh the tree structure to reflect the move
+        if (isTreeView && currentFolder) {
+          // Use the new recursive refresh function that properly handles expanded state
+          await refreshTreeWithExpandedState(currentFolder, expandedFolders);
+          
+          // Trigger a global refresh event
+          window.dispatchEvent(new CustomEvent('refreshFolderView'));
+        } else if (currentFolder) {
+          // For list view, just refresh the current folder
+          await loadFolderContents(currentFolder);
         }
       } else {
-        alert(`Failed to move ${draggedItem.name}: ${result?.error || 'Unknown error'}`);
+        alert(`Failed to move ${itemBeingMoved.name}: ${result?.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Failed to move item:', error);
-      alert(`Failed to move ${draggedItem.name}`);
+      alert(`Failed to move ${itemBeingMoved.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      handleDragEnd();
+    }
+  };
+
+  // Breadcrumb drag and drop handlers
+  const handleBreadcrumbDragOver = (e: React.DragEvent, targetPath: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!draggedItem) return;
+    
+    // Check if this is a valid drop target
+    const draggedParent = draggedItem.path.split('/').slice(0, -1).join('/');
+    if (draggedParent !== targetPath) {
+      // Valid drop target if not the same parent directory
+      e.dataTransfer.dropEffect = 'move';
+      setDropTarget(targetPath);
+    } else {
+      e.dataTransfer.dropEffect = 'none';
+    }
+  };
+
+  const handleBreadcrumbDrop = async (e: React.DragEvent, targetPath: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!draggedItem) return;
+    
+    // Immediately clear draggedItem to prevent double processing
+    const itemBeingMoved = { ...draggedItem };
+    setDraggedItem(null);
+    
+    // Calculate the new path
+    const newPath = `${targetPath}/${itemBeingMoved.name}`;
+    
+    // Don't move if the file would end up in the same location
+    if (itemBeingMoved.path === newPath) {
+      handleDragEnd();
+      return;
+    }
+    
+    // Don't drop into its own parent (same directory)
+    const draggedParent = itemBeingMoved.path.split('/').slice(0, -1).join('/');
+    if (draggedParent === targetPath) {
+      handleDragEnd();
+      return;
+    }
+    
+    try {
+      const result = await window.electronAPI?.file?.move(itemBeingMoved.path, newPath);
+      
+      if (result?.success) {
+        // Update current document path if the moved file was open
+        if (currentDocument === itemBeingMoved.path) {
+          setCurrentDocument(result.newPath || newPath);
+        }
+        
+        // Clear selected item if it was moved
+        if (selectedItem?.path === itemBeingMoved.path) {
+          setSelectedItem(null);
+        }
+        
+        // Refresh the tree structure
+        if (isTreeView && currentFolder) {
+          await refreshTreeWithExpandedState(currentFolder, expandedFolders);
+          window.dispatchEvent(new CustomEvent('refreshFolderView'));
+        } else if (currentFolder) {
+          await loadFolderContents(currentFolder);
+        }
+      } else {
+        alert(`Failed to move ${itemBeingMoved.name}: ${result?.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Failed to move item:', error);
+      alert(`Failed to move ${itemBeingMoved.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       handleDragEnd();
     }
@@ -1165,7 +1287,7 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
               <button
                 onClick={() => navigateToFolder(crumb.path)}
                 className={clsx(
-                  'flex items-center px-3 py-2 text-sm transition-all duration-200 min-w-0',
+                  'flex items-center px-3 py-2 text-sm transition-all duration-200 min-w-0 rounded-md',
                   index === breadcrumbs.length - 1 
                     ? // Current folder - subtle highlight, not button-like
                       crumb.isLibrary
@@ -1175,16 +1297,21 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
                         : isDarkMode
                           ? 'text-accent-blue font-semibold'
                           : 'text-blue-700 font-semibold'
-                    : // Navigable parent folders
+                    : // Navigable parent folders - also drop targets
                       crumb.isLibrary
                         ? isDarkMode
-                          ? 'text-yellow-400/70 hover:text-yellow-300 hover:bg-kanagawa-ink4/50 font-medium rounded-md'
-                          : 'text-amber-600 hover:text-amber-700 hover:bg-amber-50 font-medium rounded-md'
+                          ? 'text-yellow-400/70 hover:text-yellow-300 hover:bg-kanagawa-ink4/50 font-medium'
+                          : 'text-amber-600 hover:text-amber-700 hover:bg-amber-50 font-medium'
                         : isDarkMode
-                          ? 'text-kanagawa-oldwhite/70 hover:text-kanagawa-oldwhite hover:bg-kanagawa-ink4/50 font-medium rounded-md'
-                          : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100 font-medium rounded-md'
+                          ? 'text-kanagawa-oldwhite/70 hover:text-kanagawa-oldwhite hover:bg-kanagawa-ink4/50 font-medium'
+                          : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100 font-medium',
+                  // Add drop target styling for parent folders
+                  index < breadcrumbs.length - 1 && dropTarget === crumb.path && 'ring-2 ring-blue-500 bg-blue-500/20 transform scale-105'
                 )}
                 disabled={index === breadcrumbs.length - 1}
+                onDragOver={(e) => index < breadcrumbs.length - 1 && handleBreadcrumbDragOver(e, crumb.path)}
+                onDragLeave={(e) => index < breadcrumbs.length - 1 && handleDragLeave(e)}
+                onDrop={(e) => index < breadcrumbs.length - 1 && handleBreadcrumbDrop(e, crumb.path)}
               >
                 {index === 0 && (
                   crumb.isLibrary ? (
