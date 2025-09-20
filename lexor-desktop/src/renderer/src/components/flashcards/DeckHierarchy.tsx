@@ -30,6 +30,7 @@ interface DeckNodeProps {
   onStartStudy: (deck: Deck, includeChildren: boolean) => void;
   showActions: boolean;
   isDarkMode: boolean;
+  expandedDecks: Set<number>;
 }
 
 const DeckNode: React.FC<DeckNodeProps> = ({
@@ -40,7 +41,8 @@ const DeckNode: React.FC<DeckNodeProps> = ({
   onSelectDeck,
   onStartStudy,
   showActions,
-  isDarkMode
+  isDarkMode,
+  expandedDecks
 }) => {
   const hasChildren = deck.children && deck.children.length > 0;
   const isCollection = !deck.file_path; // Collections have no file_path
@@ -361,12 +363,13 @@ const DeckNode: React.FC<DeckNodeProps> = ({
               key={child.id}
               deck={child}
               depth={depth + 1}
-              isExpanded={isExpanded}
+              isExpanded={expandedDecks.has(child.id!)}
               onToggleExpand={onToggleExpand}
               onSelectDeck={onSelectDeck}
               onStartStudy={onStartStudy}
               showActions={showActions}
               isDarkMode={isDarkMode}
+              expandedDecks={expandedDecks}
             />
           ))}
         </div>
@@ -503,6 +506,7 @@ export const DeckHierarchy: React.FC<DeckHierarchyProps> = ({
               onStartStudy={onStartStudy}
               showActions={showActions}
               isDarkMode={isDarkMode}
+              expandedDecks={expandedDecks}
             />
           ))}
         </div>
