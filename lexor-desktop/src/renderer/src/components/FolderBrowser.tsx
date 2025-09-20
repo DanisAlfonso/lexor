@@ -199,10 +199,16 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
 
   const confirmRename = async (oldPath: string) => {
     if (!newItemName.trim() || !window.electronAPI?.file?.rename) return;
-    
+
     try {
       const result = await window.electronAPI.file.rename(oldPath, newItemName);
       if (result.success && currentFolder) {
+        // Update currentDocument path if the renamed file was open
+        if (currentDocument === oldPath) {
+          const newPath = oldPath.substring(0, oldPath.lastIndexOf('/') + 1) + newItemName;
+          setCurrentDocument(newPath);
+        }
+
         // Use the unified refresh system
         if (isTreeView) {
           await loadTreeData(currentFolder);
