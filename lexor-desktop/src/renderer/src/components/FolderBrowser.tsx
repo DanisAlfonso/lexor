@@ -23,9 +23,9 @@ interface FolderBrowserProps {
 }
 
 export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
-  const { 
-    currentFolder, 
-    folderContents, 
+  const {
+    currentFolder,
+    folderContents,
     isLoadingFolder,
     loadFolderContents,
     theme,
@@ -43,11 +43,17 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
     focusEditor,
     // Split screen functionality
     isSplitScreenMode,
+    rightPaneDocument,
+    setRightPaneDocument,
+    setRightPaneContent,
+    setRightPaneModified,
     openInRightPane,
     focusedPane,
     // PDF functionality
     openPdfDocument
   } = useAppStore();
+
+  const store = useAppStore.getState;
 
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [treeData, setTreeData] = useState<FileItem[]>([]);
@@ -276,10 +282,11 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
       // Delete the actual file/folder
       const result = await window.electronAPI?.file?.delete(item.path);
       if (result?.success) {
-        // Check if the deleted item affects the currently open document
-        if (currentDocument && (
-          currentDocument === item.path || // Direct file match
-          (item.isDirectory && currentDocument.startsWith(item.path + '/')) // File is inside deleted folder
+        // Check if the deleted item affects the currently open documents
+        const freshState = store();
+        if (freshState.currentDocument && (
+          freshState.currentDocument === item.path || // Direct file match
+          (item.isDirectory && freshState.currentDocument.startsWith(item.path + '/')) // File is inside deleted folder
         )) {
           // Clear the editor since the file no longer exists
           setCurrentDocument(null);
@@ -287,6 +294,17 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
           setDocumentModified(false);
           // Focus the editor so user can continue typing
           setTimeout(() => focusEditor(), 100);
+        }
+
+        // Also check if the deleted file is open in the right pane (split screen mode)
+        if (rightPaneDocument && (
+          rightPaneDocument === item.path || // Direct file match
+          (item.isDirectory && rightPaneDocument.startsWith(item.path + '/')) // File is inside deleted folder
+        )) {
+          // Clear the right pane since the file no longer exists
+          setRightPaneDocument(null);
+          setRightPaneContent('');
+          setRightPaneModified(false);
         }
         
         // Refresh folder contents
@@ -933,6 +951,15 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
               setCurrentDocument(null);
               setDocumentContent('');
               setDocumentModified(false);
+              // Focus the editor so user can continue typing
+              setTimeout(() => focusEditor(), 100);
+            }
+
+            // Also check if the removed file is open in the right pane
+            if (rightPaneDocument === filePath) {
+              setRightPaneDocument(null);
+              setRightPaneContent('');
+              setRightPaneModified(false);
             }
           }
         }),
@@ -966,6 +993,15 @@ export function FolderBrowser({ onFileSelect }: FolderBrowserProps) {
               setCurrentDocument(null);
               setDocumentContent('');
               setDocumentModified(false);
+              // Focus the editor so user can continue typing
+              setTimeout(() => focusEditor(), 100);
+            }
+
+            // Also check if the removed folder contained a document open in the right pane
+            if (rightPaneDocument && rightPaneDocument.startsWith(dirPath + '/')) {
+              setRightPaneDocument(null);
+              setRightPaneContent('');
+              setRightPaneModified(false);
             }
           }
         }),

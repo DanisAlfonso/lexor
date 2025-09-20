@@ -23,20 +23,27 @@ export function TitleBar() {
       const reviewedCount = currentSession.current_index;
       return `Study Session (${reviewedCount} reviewed)`;
     }
-    
+
+    let title;
     switch (currentView) {
       case 'flashcards':
-        return 'Flashcards';
+        title = 'Flashcards';
+        break;
       case 'study':
-        return 'Study';
+        title = 'Study';
+        break;
       case 'settings':
-        return 'Settings';
+        title = 'Settings';
+        break;
       case 'editor':
       default:
-        return currentDocument 
+        title = currentDocument
           ? currentDocument.split('/').pop() || 'Untitled'
           : 'Untitled';
+        break;
     }
+
+    return title;
   };
 
   const title = getTitle();
