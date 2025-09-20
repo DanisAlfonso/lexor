@@ -238,4 +238,159 @@
   .rotate-y-180 {
     transform: rotateY(180deg);
   }
+
+  /* Markdown content styles */
+  .markdown-content {
+    @apply leading-relaxed;
+  }
+
+  /* Markdown typography elements */
+  .markdown-content h1,
+  .markdown-content h2,
+  .markdown-content h3,
+  .markdown-content h4,
+  .markdown-content h5,
+  .markdown-content h6 {
+    @apply font-bold mb-2 mt-4;
+  }
+
+  .markdown-content h1 { @apply text-xl; }
+  .markdown-content h2 { @apply text-lg; }
+  .markdown-content h3 { @apply text-base; }
+  .markdown-content h4 { @apply text-sm; }
+
+  .markdown-content p {
+    @apply mb-3;
+  }
+
+  .markdown-content strong,
+  .markdown-content b {
+    @apply font-bold;
+  }
+
+  .markdown-content em,
+  .markdown-content i {
+    @apply italic;
+  }
+
+  .markdown-content code {
+    @apply bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-sm font-mono;
+  }
+
+  .markdown-content pre {
+    @apply bg-gray-100 text-gray-800 p-3 rounded-lg mb-3 overflow-x-auto font-mono text-sm;
+  }
+
+  .markdown-content blockquote {
+    @apply border-l-4 border-gray-300 pl-4 italic my-3 text-gray-600;
+  }
+
+  .markdown-content ul,
+  .markdown-content ol {
+    @apply mb-3 ml-6;
+  }
+
+  .markdown-content li {
+    @apply mb-1;
+  }
+
+  .markdown-content ul li {
+    @apply list-disc;
+  }
+
+  .markdown-content ol li {
+    @apply list-decimal;
+  }
+
+  .markdown-content a {
+    @apply text-primary-600 hover:text-primary-700 underline;
+  }
+
+  .markdown-content table {
+    @apply w-full border-collapse mb-3;
+  }
+
+  .markdown-content th,
+  .markdown-content td {
+    @apply border border-gray-300 px-3 py-2 text-left;
+  }
+
+  .markdown-content th {
+    @apply bg-gray-100 font-semibold;
+  }
+
+  .markdown-content hr {
+    @apply border-gray-300 my-4;
+  }
+
+  .markdown-content del,
+  .markdown-content s {
+    @apply line-through;
+  }
+
+  /* Dark mode markdown styles */
+  @media (prefers-color-scheme: dark) {
+    .markdown-content code {
+      @apply bg-gray-800 text-gray-200;
+    }
+
+    .markdown-content pre {
+      @apply bg-gray-800 text-gray-200;
+    }
+
+    .markdown-content blockquote {
+      @apply border-gray-600 text-gray-400;
+    }
+
+    .markdown-content a {
+      @apply text-blue-400 hover:text-blue-300;
+    }
+
+    .markdown-content th,
+    .markdown-content td {
+      @apply border-gray-600;
+    }
+
+    .markdown-content th {
+      @apply bg-gray-800;
+    }
+
+    .markdown-content hr {
+      @apply border-gray-600;
+    }
+  }
+
+  /* Theme-specific markdown styles */
+  .markdown-content[data-theme="dark"] {
+    @apply text-kanagawa-white;
+  }
+
+  .markdown-content[data-theme="dark"] code {
+    @apply bg-kanagawa-ink5 text-kanagawa-oldwhite;
+  }
+
+  .markdown-content[data-theme="dark"] pre {
+    @apply bg-kanagawa-ink5 text-kanagawa-oldwhite;
+  }
+
+  .markdown-content[data-theme="dark"] blockquote {
+    @apply border-kanagawa-ink5 text-kanagawa-gray;
+  }
+
+  .markdown-content[data-theme="dark"] a {
+    @apply text-blue-400 hover:text-blue-300;
+  }
+
+  .markdown-content[data-theme="dark"] th,
+  .markdown-content[data-theme="dark"] td {
+    @apply border-kanagawa-ink5;
+  }
+
+  .markdown-content[data-theme="dark"] th {
+    @apply bg-kanagawa-ink4;
+  }
+
+  .markdown-content[data-theme="dark"] hr {
+    @apply border-kanagawa-ink5;
+  }
 }

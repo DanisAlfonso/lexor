@@ -1,4 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
+import { remark } from 'remark';
+import remarkGfm from 'remark-gfm';
+import remarkHtml from 'remark-html';
 
 // Cache for home directory to avoid repeated IPC calls
 let cachedHomeDir: string | null = null;
@@ -72,11 +75,32 @@ function getMediaUrl(src: string): string {
 // Initialize home directory cache when the module loads
 initializeHomeDir();
 
+// Initialize remark processor once for reuse
+const remarkProcessor = remark()
+  .use(remarkGfm)
+  .use(remarkHtml, { sanitize: false });
+
 interface MediaRendererProps {
   content: string;
   isDarkMode: boolean;
   className?: string;
 }
+
+// Function to process Markdown to HTML
+const processMarkdown = async (text: string): Promise<string> => {
+  try {
+    const result = await remarkProcessor.process(text);
+    return result.toString();
+  } catch (error) {
+    console.error('Markdown processing failed:', error);
+    // Fallback to basic HTML escaping
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br />');
+  }
+};
 
 interface ImageComponentProps {
   src: string;
@@ -430,105 +454,145 @@ const BlockAudioComponent: React.FC<BlockAudioComponentProps> = ({ src, title, i
 };
 
 export const MediaRenderer: React.FC<MediaRendererProps> = ({ content, isDarkMode, className }) => {
-  const processContent = (text: string) => {
-    const elements: React.ReactElement[] = [];
-    let keyCounter = 0;
-    let workingText = text;
+  const [processedElements, setProcessedElements] = useState<React.ReactElement[]>([]);
+  const [isProcessing, setIsProcessing] = useState(true);
 
-    // First, extract all multimedia elements and replace them with placeholders
-    const mediaElements: { [key: string]: React.ReactElement } = {};
+  useEffect(() => {
+    const processContent = async () => {
+      setIsProcessing(true);
 
-    // Process images: ![alt](src "title")
-    const imageRegex = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g;
-    let imageMatch;
-    while ((imageMatch = imageRegex.exec(text)) !== null) {
-      const placeholder = `__IMAGE_${keyCounter}__`;
-      const alt = imageMatch[1] || '';
-      const src = imageMatch[2];
-      const title = imageMatch[3] || '';
-      
-      mediaElements[placeholder] = (
-        <ImageComponent
-          key={`image-${keyCounter}`}
-          src={src}
-          alt={alt}
-          title={title}
-          isDarkMode={isDarkMode}
-        />
-      );
-      
-      workingText = workingText.replace(imageMatch[0], placeholder);
-      keyCounter++;
-    }
+      try {
+        const elements: React.ReactElement[] = [];
+        let keyCounter = 0;
+        let workingText = content;
 
-    // Process block audio: [audio: title](src)
-    const blockAudioRegex = /\[audio:\s*([^\]]*)\]\(([^)]+)\)/gi;
-    let blockAudioMatch;
-    while ((blockAudioMatch = blockAudioRegex.exec(text)) !== null) {
-      const placeholder = `__BLOCK_AUDIO_${keyCounter}__`;
-      const title = blockAudioMatch[1] || '';
-      const src = blockAudioMatch[2];
-      
-      mediaElements[placeholder] = (
-        <BlockAudioComponent
-          key={`block-audio-${keyCounter}`}
-          src={src}
-          title={title}
-          isDarkMode={isDarkMode}
-        />
-      );
-      
-      workingText = workingText.replace(blockAudioMatch[0], placeholder);
-      keyCounter++;
-    }
+        // First, extract all multimedia elements and replace them with placeholders
+        const mediaElements: { [key: string]: React.ReactElement } = {};
 
-    // Process inline audio: [inline: title](src)
-    const inlineAudioRegex = /\[inline:\s*([^\]]*)\]\(([^)]+)\)/gi;
-    let inlineAudioMatch;
-    while ((inlineAudioMatch = inlineAudioRegex.exec(text)) !== null) {
-      const placeholder = `__INLINE_AUDIO_${keyCounter}__`;
-      const title = inlineAudioMatch[1] || '';
-      const src = inlineAudioMatch[2];
-      
-      mediaElements[placeholder] = (
-        <InlineAudioComponent
-          key={`inline-audio-${keyCounter}`}
-          src={src}
-          title={title}
-          isDarkMode={isDarkMode}
-        />
-      );
-      
-      workingText = workingText.replace(inlineAudioMatch[0], placeholder);
-      keyCounter++;
-    }
+        // Process images: ![alt](src "title")
+        const imageRegex = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g;
+        let imageMatch;
+        while ((imageMatch = imageRegex.exec(content)) !== null) {
+          const placeholder = `__IMAGE_${keyCounter}__`;
+          const alt = imageMatch[1] || '';
+          const src = imageMatch[2];
+          const title = imageMatch[3] || '';
 
-    // Now split the working text and insert media elements
-    const parts = workingText.split(/(__(?:IMAGE|BLOCK_AUDIO|INLINE_AUDIO)_\d+__)/);
-    
-    return parts.map((part, index) => {
-      if (part.startsWith('__') && part.endsWith('__') && mediaElements[part]) {
-        return mediaElements[part];
-      } else if (part.trim()) {
-        return (
+          mediaElements[placeholder] = (
+            <ImageComponent
+              key={`image-${keyCounter}`}
+              src={src}
+              alt={alt}
+              title={title}
+              isDarkMode={isDarkMode}
+            />
+          );
+
+          workingText = workingText.replace(imageMatch[0], placeholder);
+          keyCounter++;
+        }
+
+        // Process block audio: [audio: title](src)
+        const blockAudioRegex = /\[audio:\s*([^\]]*)\]\(([^)]+)\)/gi;
+        let blockAudioMatch;
+        while ((blockAudioMatch = blockAudioRegex.exec(content)) !== null) {
+          const placeholder = `__BLOCK_AUDIO_${keyCounter}__`;
+          const title = blockAudioMatch[1] || '';
+          const src = blockAudioMatch[2];
+
+          mediaElements[placeholder] = (
+            <BlockAudioComponent
+              key={`block-audio-${keyCounter}`}
+              src={src}
+              title={title}
+              isDarkMode={isDarkMode}
+            />
+          );
+
+          workingText = workingText.replace(blockAudioMatch[0], placeholder);
+          keyCounter++;
+        }
+
+        // Process inline audio: [inline: title](src)
+        const inlineAudioRegex = /\[inline:\s*([^\]]*)\]\(([^)]+)\)/gi;
+        let inlineAudioMatch;
+        while ((inlineAudioMatch = inlineAudioRegex.exec(content)) !== null) {
+          const placeholder = `__INLINE_AUDIO_${keyCounter}__`;
+          const title = inlineAudioMatch[1] || '';
+          const src = inlineAudioMatch[2];
+
+          mediaElements[placeholder] = (
+            <InlineAudioComponent
+              key={`inline-audio-${keyCounter}`}
+              src={src}
+              title={title}
+              isDarkMode={isDarkMode}
+            />
+          );
+
+          workingText = workingText.replace(inlineAudioMatch[0], placeholder);
+          keyCounter++;
+        }
+
+        // Process the remaining text with Markdown
+        const markdownHtml = await processMarkdown(workingText);
+
+        // Now split the markdown HTML and insert media elements
+        const parts = markdownHtml.split(/(__(?:IMAGE|BLOCK_AUDIO|INLINE_AUDIO)_\d+__)/);
+
+        const finalElements = parts.map((part, index) => {
+          if (part.startsWith('__') && part.endsWith('__') && mediaElements[part]) {
+            return mediaElements[part];
+          } else if (part.trim()) {
+            return (
+              <span
+                key={`text-${index}`}
+                className="select-text markdown-content"
+                dangerouslySetInnerHTML={{
+                  __html: part
+                }}
+              />
+            );
+          }
+          return null;
+        }).filter(Boolean) as React.ReactElement[];
+
+        setProcessedElements(finalElements);
+      } catch (error) {
+        console.error('Content processing failed:', error);
+        // Fallback to basic text display
+        setProcessedElements([
           <span
-            key={`text-${index}`}
+            key="fallback"
             className="select-text"
             dangerouslySetInnerHTML={{
-              __html: part.replace(/\n/g, '<br />')
+              __html: content.replace(/\n/g, '<br />')
             }}
           />
-        );
+        ]);
+      } finally {
+        setIsProcessing(false);
       }
-      return null;
-    }).filter(Boolean);
-  };
+    };
 
-  const processedContent = processContent(content);
-  
+    processContent();
+  }, [content, isDarkMode]);
+
+  if (isProcessing) {
+    return (
+      <div className={className}>
+        <div className="flex items-center justify-center p-4">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2" style={{
+            borderColor: isDarkMode ? '#727169' : '#6b7280'
+          }} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={className}>
-      {processedContent}
+      {processedElements}
     </div>
   );
 };
