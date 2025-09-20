@@ -72,7 +72,6 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
 
   const monitorRotation = useCallback(() => {
     if (!cardRef.current || !isAnimatingRef.current) {
-      console.log('Monitoring stopped - no card ref or not animating');
       return;
     }
     
@@ -82,30 +81,29 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
     
     // Log only every ~500ms
     if (Date.now() % 500 < 16) {
-      console.log('Current angle:', Math.round(currentAngle), 'isFlipped:', isFlippedRef.current, 'showBackContent:', showBackContentRef.current);
       
       if (isFlippedRef.current) {
         // Forward animation (0° → 180°): Show what's visually displayed
         if (currentAngle < 90) {
-          console.log('QUESTION: NORMAL');
+          // QUESTION: NORMAL
         } else {
-          console.log('ANSWER: NORMAL');
+          // ANSWER: NORMAL
         }
       } else {
         // Reverse animation (180° → 0°): Show what's visually displayed
         if (currentAngle > 90) {
           // First 90° of reverse (180° → 90°): Show what content is actually visible
           if (showBackContentRef.current) {
-            console.log('ANSWER: NORMAL');
+            // ANSWER: NORMAL
           } else {
-            console.log('QUESTION: MIRRORED');
+            // QUESTION: MIRRORED
           }
         } else {
           // Remaining 90° of reverse (90° → 0°): Show what content is actually visible
           if (showBackContentRef.current) {
-            console.log('ANSWER: MIRRORED');
+            // ANSWER: MIRRORED
           } else {
-            console.log('QUESTION: NORMAL');
+            // QUESTION: NORMAL
           }
         }
       }
@@ -113,7 +111,6 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
     
     // Forward animation: switch to back content at 90°
     if (isFlippedRef.current && currentAngle >= 90 && !showBackContentRef.current && !hasFlippedToBackRef.current) {
-      console.log('Forward: Switching to back content at angle:', currentAngle);
       hasFlippedToBackRef.current = true;
       showBackContentRef.current = true;
       setShowBackContent(true);
@@ -121,7 +118,6 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
     
     // Reverse animation: switch from answer to question content at 90°
     if (!isFlippedRef.current && currentAngle <= 90 && showBackContentRef.current && !hasFlippedToBackRef.current) {
-      console.log('Reverse: Switching to question content at angle:', currentAngle);
       showBackContentRef.current = false;
       setShowBackContent(false);
       hasFlippedToBackRef.current = true;
@@ -131,7 +127,6 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
     const isComplete = (isFlippedRef.current && currentAngle >= 179) || (!isFlippedRef.current && currentAngle <= 1);
     
     if (isComplete) {
-      console.log('Animation complete at angle:', currentAngle, 'stopping monitoring');
       isAnimatingRef.current = false;
       setIsAnimating(false);
       if (isFlippedRef.current) {
@@ -155,9 +150,7 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
   }, []);
 
   useEffect(() => {
-    console.log('useEffect triggered - showAnswer:', showAnswer);
     if (showAnswer) {
-      console.log('Starting forward animation (question to answer)');
       isAnimatingRef.current = true;
       isFlippedRef.current = true;
       showBackContentRef.current = false;
@@ -169,7 +162,6 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
     } else {
       if (wasShowingAnswer) {
         // This is a reverse animation from answer back to question
-        console.log('Starting reverse animation monitoring (answer to question)');
         isAnimatingRef.current = true;
         isFlippedRef.current = false;
         setIsAnimating(true);
@@ -183,7 +175,6 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
         }
       } else {
         // This is initial state or reset
-        console.log('Resetting to question state');
         isAnimatingRef.current = false;
         isFlippedRef.current = false;
         showBackContentRef.current = false;
@@ -203,7 +194,6 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
   // Start monitoring when animation begins (forward or reverse)
   useEffect(() => {
     if (isAnimating) {
-      console.log('Starting rotation monitoring for', isFlipped ? 'forward' : 'reverse', 'animation');
       monitorRotation();
     }
   }, [isAnimating, isFlipped]);
@@ -313,7 +303,7 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
           onClick={handleCardClick}
         >
           {/* Front of card - only render when not flipped */}
-          {!showBackContent && (console.log('Rendering FRONT content') || (
+          {!showBackContent && (
             <div 
               className={clsx(
                 'absolute inset-0 w-full h-full rounded-2xl p-8 flex flex-col justify-center',
@@ -337,13 +327,13 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
                     isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
                   )}
                 />
-                
+
               </div>
             </div>
-          ))}
+          )}
 
           {/* Back of card - only render when flipped */}
-          {showBackContent && (console.log('Rendering BACK content') || (
+          {showBackContent && (
             <div 
               className={clsx(
                 'absolute inset-0 w-full h-full rounded-2xl p-8 flex flex-col justify-center',
@@ -372,7 +362,7 @@ const FlashcardDisplay: React.FC<FlashcardDisplayProps> = ({
                 />
               </div>
             </div>
-          ))}
+          )}
         </div>
       </div>
 
@@ -486,7 +476,6 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
     
     if (audioElements.length === 0) {
       // No audio found, provide user feedback (could add visual feedback later)
-      console.log('No audio found on current flashcard');
       return;
     }
     
@@ -520,7 +509,6 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
       const targetAudio = targetElements[0];
       targetAudio.play().catch(error => {
         console.error('Failed to play audio:', error);
-        // Could add user notification here in the future
       });
     }
   };
