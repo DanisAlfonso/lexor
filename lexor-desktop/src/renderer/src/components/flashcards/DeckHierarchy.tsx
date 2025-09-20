@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ChevronDownIcon, 
-  ChevronRightIcon, 
-  FolderIcon, 
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  FolderIcon,
   DocumentTextIcon,
   PlayIcon,
   PlusIcon,
   EllipsisHorizontalIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import { clsx } from 'clsx';
 import { Deck, DeckStats } from '../../../../shared/types/flashcards';
@@ -95,6 +96,33 @@ const DeckNode: React.FC<DeckNodeProps> = ({
   const handleMenuToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowMenu(!showMenu);
+  };
+
+  const handleDeleteDeck = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMenu(false);
+
+    if (!deck.id) return;
+
+    const confirmMessage = isOrphaned
+      ? `This deck is orphaned (source file missing). Delete it and all its flashcards?\n\nDeck: ${deck.name}\nCards: ${stats?.total_cards || 0}`
+      : `Are you sure you want to delete this deck and all its flashcards?\n\nDeck: ${deck.name}\nCards: ${stats?.total_cards || 0}\n\nThis action cannot be undone.`;
+
+    if (window.confirm(confirmMessage)) {
+      try {
+        const { deleteDeck, loadDecks } = useFlashcardStore.getState();
+        const success = await deleteDeck(deck.id);
+        if (success) {
+          // Force a refresh of the decks list
+          await loadDecks();
+        } else {
+          alert('Failed to delete deck. Please try again.');
+        }
+      } catch (error) {
+        console.error('Error deleting deck:', error);
+        alert('An error occurred while deleting the deck.');
+      }
+    }
   };
 
   const indentationLevel = depth * 20;
@@ -280,7 +308,7 @@ const DeckNode: React.FC<DeckNodeProps> = ({
                       disabled={!stats?.due_cards}
                       className={clsx(
                         'flex items-center w-full px-4 py-2 text-sm text-left transition-colors duration-200',
-                        stats?.due_cards 
+                        stats?.due_cards
                           ? isDarkMode
                             ? 'hover:bg-kanagawa-ink5 text-kanagawa-oldwhite'
                             : 'hover:bg-gray-100 text-gray-900'
@@ -294,27 +322,30 @@ const DeckNode: React.FC<DeckNodeProps> = ({
                     </button>
                   )}
 
-                  <div className={clsx(
-                    'my-1 border-t',
-                    isDarkMode ? 'border-kanagawa-ink5' : 'border-gray-200'
-                  )} />
-                  
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowMenu(false);
-                      // TODO: Implement edit functionality
-                    }}
-                    className={clsx(
-                      'flex items-center w-full px-4 py-2 text-sm text-left transition-colors duration-200',
-                      isDarkMode
-                        ? 'hover:bg-kanagawa-ink5 text-kanagawa-oldwhite'
-                        : 'hover:bg-gray-100 text-gray-900'
-                    )}
-                  >
-                    <DocumentTextIcon className="h-4 w-4 mr-2" />
-                    Edit Deck
-                  </button>
+                  {(isOrphaned || hasCards) && (
+                    <div className={clsx(
+                      'my-1 border-t',
+                      isDarkMode ? 'border-kanagawa-ink5' : 'border-gray-200'
+                    )} />
+                  )}
+
+                  {(isOrphaned || hasCards) && (
+                    <button
+                      onClick={handleDeleteDeck}
+                      className={clsx(
+                        'flex items-center w-full px-4 py-2 text-sm text-left transition-colors duration-200',
+                        isDarkMode
+                          ? 'hover:bg-red-900 hover:bg-opacity-30 text-red-400'
+                          : 'hover:bg-red-50 text-red-600'
+                      )}
+                    >
+                      <TrashIcon className="h-4 w-4 mr-2" />
+                      {isOrphaned
+                        ? 'Delete Orphaned Deck'
+                        : `Delete Deck (${stats?.total_cards || 0} cards)`
+                      }
+                    </button>
+                  )}
                 </div>
               </div>
             )}
