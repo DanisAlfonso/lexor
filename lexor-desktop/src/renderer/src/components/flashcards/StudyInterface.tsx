@@ -13,6 +13,7 @@ import { clsx } from 'clsx';
 import { StudyCard, Rating, StudySession } from '../../../../shared/types/flashcards';
 import { useFlashcardStore } from '../../stores/flashcardStore';
 import { useAppStore } from '../../stores/appStore';
+import { useStudySettingsStore } from '../../stores/studySettingsStore';
 import { MediaRenderer } from './MediaRenderer';
 
 interface StudyInterfaceProps {
@@ -375,6 +376,7 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
   onExit = () => {}
 }) => {
   const { theme } = useAppStore();
+  const { rateFromBothSides } = useStudySettingsStore();
   const {
     currentSession,
     currentCard,
@@ -411,22 +413,22 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
         showCardAnswer();
         break;
       case '1':
-        if (showAnswer) {
+        if (showAnswer || rateFromBothSides) {
           handleRate(Rating.Again);
         }
         break;
       case '2':
-        if (showAnswer) {
+        if (showAnswer || rateFromBothSides) {
           handleRate(Rating.Hard);
         }
         break;
       case '3':
-        if (showAnswer) {
+        if (showAnswer || rateFromBothSides) {
           handleRate(Rating.Good);
         }
         break;
       case '4':
-        if (showAnswer) {
+        if (showAnswer || rateFromBothSides) {
           handleRate(Rating.Easy);
         }
         break;

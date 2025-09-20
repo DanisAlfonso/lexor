@@ -40,6 +40,9 @@ export function Settings() {
     learningSteps,
     relearningSteps,
     showProgress,
+    buryRelatedCards,
+    autoAdvance,
+    rateFromBothSides,
     updateSettings,
     resetToDefaults
   } = useStudySettingsStore();
@@ -560,28 +563,147 @@ export function Settings() {
               )}>
                 Display Options
               </h3>
-              
-              <div className="space-y-3">
+
+              <div className="space-y-4">
                 {/* Show Progress */}
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={showProgress}
-                    onChange={(e) => updateSettings({ showProgress: e.target.checked })}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className={clsx(
+                      'text-sm font-medium',
+                      isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                    )}>
+                      Show progress indicator during study sessions
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => updateSettings({ showProgress: !showProgress })}
                     className={clsx(
-                      'h-4 w-4 rounded border focus:ring-2 focus:ring-offset-2',
-                      isDarkMode
-                        ? 'border-kanagawa-ink5 bg-kanagawa-ink5 text-accent-blue focus:ring-accent-blue focus:ring-offset-kanagawa-ink4'
-                        : 'border-gray-300 bg-white text-primary-600 focus:ring-primary-600 focus:ring-offset-white'
+                      'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2',
+                      showProgress
+                        ? 'bg-accent-blue focus:ring-accent-blue'
+                        : isDarkMode
+                          ? 'bg-kanagawa-ink5 focus:ring-kanagawa-ink6'
+                          : 'bg-gray-200 focus:ring-gray-300'
                     )}
-                  />
-                  <span className={clsx(
-                    'ml-3 text-sm',
-                    isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
-                  )}>
-                    Show progress indicator during study sessions
-                  </span>
-                </label>
+                  >
+                    <span
+                      className={clsx(
+                        'inline-block h-4 w-4 transform rounded-full bg-white transition',
+                        showProgress ? 'translate-x-6' : 'translate-x-1'
+                      )}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Study Behavior */}
+            <div>
+              <h3 className={clsx(
+                'text-sm font-medium mb-3',
+                isDarkMode ? 'text-kanagawa-white' : 'text-gray-900'
+              )}>
+                Study Behavior
+              </h3>
+
+              <div className="space-y-4">
+                {/* Rate from Both Sides */}
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className={clsx(
+                        'text-sm font-medium',
+                        isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                      )}>
+                        Allow rating from both question and answer sides
+                      </h3>
+                      <p className={clsx(
+                        'text-xs mt-1',
+                        isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+                      )}>
+                        When enabled, you can rate cards (1-4 keys) at any time
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => updateSettings({ rateFromBothSides: !rateFromBothSides })}
+                      className={clsx(
+                        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2',
+                        rateFromBothSides
+                          ? 'bg-accent-blue focus:ring-accent-blue'
+                          : isDarkMode
+                            ? 'bg-kanagawa-ink5 focus:ring-kanagawa-ink6'
+                            : 'bg-gray-200 focus:ring-gray-300'
+                      )}
+                    >
+                      <span
+                        className={clsx(
+                          'inline-block h-4 w-4 transform rounded-full bg-white transition',
+                          rateFromBothSides ? 'translate-x-6' : 'translate-x-1'
+                        )}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Bury Related Cards */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className={clsx(
+                      'text-sm font-medium',
+                      isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                    )}>
+                      Bury related cards until next day
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => updateSettings({ buryRelatedCards: !buryRelatedCards })}
+                    className={clsx(
+                      'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2',
+                      buryRelatedCards
+                        ? 'bg-accent-blue focus:ring-accent-blue'
+                        : isDarkMode
+                          ? 'bg-kanagawa-ink5 focus:ring-kanagawa-ink6'
+                          : 'bg-gray-200 focus:ring-gray-300'
+                    )}
+                  >
+                    <span
+                      className={clsx(
+                        'inline-block h-4 w-4 transform rounded-full bg-white transition',
+                        buryRelatedCards ? 'translate-x-6' : 'translate-x-1'
+                      )}
+                    />
+                  </button>
+                </div>
+
+                {/* Auto Advance */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className={clsx(
+                      'text-sm font-medium',
+                      isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
+                    )}>
+                      Auto-advance to next card after rating
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => updateSettings({ autoAdvance: !autoAdvance })}
+                    className={clsx(
+                      'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2',
+                      autoAdvance
+                        ? 'bg-accent-blue focus:ring-accent-blue'
+                        : isDarkMode
+                          ? 'bg-kanagawa-ink5 focus:ring-kanagawa-ink6'
+                          : 'bg-gray-200 focus:ring-gray-300'
+                    )}
+                  >
+                    <span
+                      className={clsx(
+                        'inline-block h-4 w-4 transform rounded-full bg-white transition',
+                        autoAdvance ? 'translate-x-6' : 'translate-x-1'
+                      )}
+                    />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -657,8 +779,8 @@ export function Settings() {
                     'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2',
                     isAutoSaveEnabled
                       ? 'bg-accent-blue focus:ring-accent-blue'
-                      : isDarkMode 
-                        ? 'bg-kanagawa-ink5 focus:ring-kanagawa-ink6' 
+                      : isDarkMode
+                        ? 'bg-kanagawa-ink5 focus:ring-kanagawa-ink6'
                         : 'bg-gray-200 focus:ring-gray-300'
                   )}
                 >
@@ -883,8 +1005,8 @@ function LanguageToolsSection() {
                 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2',
                 isSpellcheckEnabled
                   ? 'bg-accent-blue focus:ring-accent-blue'
-                  : isDarkMode 
-                    ? 'bg-kanagawa-ink5 focus:ring-kanagawa-ink6' 
+                  : isDarkMode
+                    ? 'bg-kanagawa-ink5 focus:ring-kanagawa-ink6'
                     : 'bg-gray-200 focus:ring-gray-300'
               )}
             >
@@ -912,8 +1034,8 @@ function LanguageToolsSection() {
                 'text-xs mt-1',
                 isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
               )}>
-                {grammarServiceStatus?.serverRunning 
-                  ? 'Advanced grammar checking with LanguageTool' 
+                {grammarServiceStatus?.serverRunning
+                  ? 'Advanced grammar checking with LanguageTool'
                   : 'Requires Java and LanguageTool setup'
                 }
               </p>
@@ -925,8 +1047,8 @@ function LanguageToolsSection() {
                 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2',
                 isGrammarCheckEnabled && grammarServiceStatus?.serverRunning
                   ? 'bg-accent-blue focus:ring-accent-blue'
-                  : isDarkMode 
-                    ? 'bg-kanagawa-ink5 focus:ring-kanagawa-ink6' 
+                  : isDarkMode
+                    ? 'bg-kanagawa-ink5 focus:ring-kanagawa-ink6'
                     : 'bg-gray-200 focus:ring-gray-300',
                 (!grammarServiceStatus?.initialized || !grammarServiceStatus?.serverRunning) && 'opacity-50 cursor-not-allowed'
               )}

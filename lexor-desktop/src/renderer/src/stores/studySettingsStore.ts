@@ -31,7 +31,8 @@ const defaultSettings: StudySettings = {
   
   // Study behavior
   buryRelatedCards: false,
-  autoAdvance: false
+  autoAdvance: false,
+  rateFromBothSides: true
 };
 
 export const useStudySettingsStore = create<StudySettingsState>()(

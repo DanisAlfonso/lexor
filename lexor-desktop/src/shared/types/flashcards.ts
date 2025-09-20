@@ -178,4 +178,5 @@ export interface StudySettings {
   // Study behavior
   buryRelatedCards: boolean; // Bury cards from same note
   autoAdvance: boolean; // Auto-advance after rating
+  rateFromBothSides: boolean; // Allow rating from both question and answer sides
 }
