@@ -14,6 +14,8 @@ export interface SplitScreenEditorRef {
   focusLeft: () => void;
   focusRight: () => void;
   focus: (pane: 'left' | 'right') => void;
+  leftEditorRef: React.RefObject<any>;
+  rightEditorRef: React.RefObject<any>;
 }
 
 export const SplitScreenEditor = forwardRef<SplitScreenEditorRef, SplitScreenEditorProps>(({
@@ -87,7 +89,9 @@ export const SplitScreenEditor = forwardRef<SplitScreenEditorRef, SplitScreenEdi
       } else if (pane === 'right' && rightEditorRef.current?.view) {
         rightEditorRef.current.view.focus();
       }
-    }
+    },
+    leftEditorRef,
+    rightEditorRef
   }), []);
 
   // Focus the editor when pane focus changes via keyboard shortcuts

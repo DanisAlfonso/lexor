@@ -12,6 +12,7 @@ interface SinglePaneEditorProps {
 
 export interface SinglePaneEditorRef {
   focus: () => void;
+  editorRef: React.RefObject<any>;
 }
 
 export const SinglePaneEditor = forwardRef<SinglePaneEditorRef, SinglePaneEditorProps>(({
@@ -30,7 +31,8 @@ export const SinglePaneEditor = forwardRef<SinglePaneEditorRef, SinglePaneEditor
       if (editorRef.current?.view) {
         editorRef.current.view.focus();
       }
-    }
+    },
+    editorRef
   }), []);
 
   return (
