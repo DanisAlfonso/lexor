@@ -229,6 +229,10 @@ const electronAPI = {
       ipcRenderer.on('menu:highlight-text', callback);
       return () => ipcRenderer.removeListener('menu:highlight-text', callback);
     },
+    onStrikethroughText: (callback: () => void) => {
+      ipcRenderer.on('menu:strikethrough-text', callback);
+      return () => ipcRenderer.removeListener('menu:strikethrough-text', callback);
+    },
   },
 
   // Database operations (for local SQLite database)

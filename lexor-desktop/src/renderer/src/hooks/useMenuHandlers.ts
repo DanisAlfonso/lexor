@@ -236,6 +236,11 @@ export function useMenuHandlers() {
       window.dispatchEvent(new CustomEvent('highlightText'));
     };
 
+    const handleStrikethroughText = () => {
+      // Dispatch custom event to trigger strikethrough in the editor
+      window.dispatchEvent(new CustomEvent('strikethroughText'));
+    };
+
     // Flashcard operations
     const handleNewFlashcard = () => {
       setCurrentView('flashcards');
@@ -390,6 +395,7 @@ export function useMenuHandlers() {
       window.electronAPI.menu.onFind(handleFind),
       window.electronAPI.menu.onFindReplace(handleFindReplace),
       window.electronAPI.menu.onHighlightText(handleHighlightText),
+      window.electronAPI.menu.onStrikethroughText(handleStrikethroughText),
       window.electronAPI.menu.onRenameSelected(handleRenameSelected),
       window.electronAPI.menu.onDeleteSelected(handleDeleteSelected),
       window.electronAPI.menu.onToggleSidebar(toggleSidebar),

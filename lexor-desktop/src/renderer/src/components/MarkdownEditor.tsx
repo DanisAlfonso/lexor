@@ -222,6 +222,39 @@ export function MarkdownEditor() {
     };
   }, []);
 
+  // Handle strikethrough text command from menu
+  useEffect(() => {
+    const handleStrikethroughText = () => {
+      // Simulate the keyboard shortcut by creating and dispatching a keyboard event
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const ctrlKey = !isMac;
+      const metaKey = isMac;
+
+      // Create a keyboard event for Cmd+Shift+U (Mac) or Ctrl+Shift+U (Windows/Linux)
+      const keyboardEvent = new KeyboardEvent('keydown', {
+        key: 'u',
+        code: 'KeyU',
+        ctrlKey: ctrlKey,
+        metaKey: metaKey,
+        shiftKey: true,
+        altKey: false,
+        bubbles: true,
+        cancelable: true
+      });
+
+      // Dispatch the event to the currently focused element
+      const activeElement = document.activeElement;
+      if (activeElement && activeElement instanceof HTMLElement) {
+        activeElement.dispatchEvent(keyboardEvent);
+      }
+    };
+
+    window.addEventListener('strikethroughText', handleStrikethroughText);
+    return () => {
+      window.removeEventListener('strikethroughText', handleStrikethroughText);
+    };
+  }, []);
+
   // Handle content change for left pane
   const handleLeftEditorChange = (value: string) => {
     setDocumentContent(value);
@@ -420,6 +453,80 @@ export function MarkdownEditor() {
                   from: selection.from,
                   to: selection.to,
                   insert: `==${selectedText}==`
+                },
+                selection: {
+                  anchor: selection.from,
+                  head: selection.from + selectedText.length + 4
+                }
+              });
+            }
+          }
+        }
+        return true;
+      }
+    },
+    // Strikethrough text (Cmd+Shift+U) - Toggle strikethrough
+    {
+      key: 'Mod-Shift-u',
+      run: (view) => {
+        const selection = view.state.selection.main;
+        if (selection.empty) {
+          // No selection, just insert ~~~~ and position cursor between them
+          view.dispatch({
+            changes: {
+              from: selection.from,
+              to: selection.to,
+              insert: '~~~~'
+            },
+            selection: {
+              anchor: selection.from + 2,
+              head: selection.from + 2
+            }
+          });
+        } else {
+          const selectedText = view.state.sliceDoc(selection.from, selection.to);
+          // Check if the selected text is already strikethrough (starts and ends with ~~)
+          if (selectedText.startsWith('~~') && selectedText.endsWith('~~') && selectedText.length > 4) {
+            // Remove strikethrough - unwrap the text
+            const innerText = selectedText.slice(2, -2);
+            view.dispatch({
+              changes: {
+                from: selection.from,
+                to: selection.to,
+                insert: innerText
+              },
+              selection: {
+                anchor: selection.from,
+                head: selection.from + innerText.length
+              }
+            });
+          } else {
+            // Check if selection is inside existing strikethrough markers
+            const doc = view.state.doc;
+            const textBeforeSelection = doc.sliceString(Math.max(0, selection.from - 2), selection.from);
+            const textAfterSelection = doc.sliceString(selection.to, Math.min(doc.length, selection.to + 2));
+            if (textBeforeSelection.endsWith('~~') && textAfterSelection.startsWith('~~')) {
+              // Selection is inside ~~text~~, remove the surrounding markers
+              const strikethroughStart = selection.from - 2;
+              const strikethroughEnd = selection.to + 2;
+              view.dispatch({
+                changes: {
+                  from: strikethroughStart,
+                  to: strikethroughEnd,
+                  insert: selectedText
+                },
+                selection: {
+                  anchor: strikethroughStart,
+                  head: strikethroughStart + selectedText.length
+                }
+              });
+            } else {
+              // Add strikethrough - wrap the text
+              view.dispatch({
+                changes: {
+                  from: selection.from,
+                  to: selection.to,
+                  insert: `~~${selectedText}~~`
                 },
                 selection: {
                   anchor: selection.from,

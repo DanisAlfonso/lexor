@@ -113,6 +113,11 @@ export function createMenu(): Menu {
           accelerator: 'CmdOrCtrl+Shift+H',
           click: () => highlightText()
         },
+        {
+          label: 'Strikethrough Text',
+          accelerator: 'CmdOrCtrl+Shift+U',
+          click: () => strikethroughText()
+        },
         { type: 'separator' },
         {
           label: 'Rename',
@@ -631,6 +636,11 @@ function toggleVimMode(): void {
 function highlightText(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   focusedWindow?.webContents.send('menu:highlight-text');
+}
+
+function strikethroughText(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:strikethrough-text');
 }
 
 function renameSelectedItem(): void {
