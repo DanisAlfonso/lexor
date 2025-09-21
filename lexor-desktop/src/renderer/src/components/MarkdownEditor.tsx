@@ -320,6 +320,84 @@ export function MarkdownEditor() {
         toggleVimMode();
         return true;
       }
+    },
+    // Highlight text (Cmd+Shift+H) - Toggle highlighting
+    {
+      key: 'Mod-Shift-h',
+      run: (view) => {
+        const selection = view.state.selection.main;
+
+        if (selection.empty) {
+          // No selection, just insert ==== and position cursor between them
+          view.dispatch({
+            changes: {
+              from: selection.from,
+              to: selection.to,
+              insert: '===='
+            },
+            selection: {
+              anchor: selection.from + 2,
+              head: selection.from + 2
+            }
+          });
+        } else {
+          const selectedText = view.state.sliceDoc(selection.from, selection.to);
+
+          // Check if the selected text is already highlighted (starts and ends with ==)
+          if (selectedText.startsWith('==') && selectedText.endsWith('==') && selectedText.length > 4) {
+            // Remove highlighting - unwrap the text
+            const innerText = selectedText.slice(2, -2);
+            view.dispatch({
+              changes: {
+                from: selection.from,
+                to: selection.to,
+                insert: innerText
+              },
+              selection: {
+                anchor: selection.from,
+                head: selection.from + innerText.length
+              }
+            });
+          } else {
+            // Check if selection is inside existing highlight markers
+            const doc = view.state.doc;
+            const textBeforeSelection = doc.sliceString(Math.max(0, selection.from - 2), selection.from);
+            const textAfterSelection = doc.sliceString(selection.to, Math.min(doc.length, selection.to + 2));
+
+            if (textBeforeSelection.endsWith('==') && textAfterSelection.startsWith('==')) {
+              // Selection is inside ==text==, remove the surrounding markers
+              const highlightStart = selection.from - 2;
+              const highlightEnd = selection.to + 2;
+
+              view.dispatch({
+                changes: {
+                  from: highlightStart,
+                  to: highlightEnd,
+                  insert: selectedText
+                },
+                selection: {
+                  anchor: highlightStart,
+                  head: highlightStart + selectedText.length
+                }
+              });
+            } else {
+              // Add highlighting - wrap the text
+              view.dispatch({
+                changes: {
+                  from: selection.from,
+                  to: selection.to,
+                  insert: `==${selectedText}==`
+                },
+                selection: {
+                  anchor: selection.from,
+                  head: selection.from + selectedText.length + 4
+                }
+              });
+            }
+          }
+        }
+        return true;
+      }
     }
   ]);
 
