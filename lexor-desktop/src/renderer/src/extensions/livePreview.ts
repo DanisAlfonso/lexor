@@ -221,7 +221,7 @@ class HeadingWidget extends WidgetType {
 class InlineFormatWidget extends WidgetType {
   constructor(
     private text: string,
-    private format: 'bold' | 'italic' | 'bold-italic' | 'strikethrough' | 'code' | 'highlight',
+    private format: 'bold' | 'italic' | 'bold-italic' | 'strikethrough' | 'code' | 'highlight' | 'nested-highlight-strikethrough' | 'nested-strikethrough-highlight',
     private isDark: boolean
   ) {
     super();
@@ -283,6 +283,44 @@ class InlineFormatWidget extends WidgetType {
           cursor: 'text'
         });
         element.textContent = this.text;
+        return element;
+      case 'nested-highlight-strikethrough':
+        // Create nested element: strikethrough with highlight inside
+        element = document.createElement('del');
+        const highlight = document.createElement('mark');
+        highlight.textContent = this.text;
+        Object.assign(highlight.style, {
+          backgroundColor: this.isDark ? '#7a9188' : '#fbbf24',
+          color: this.isDark ? '#1F1F28' : '#393836',
+          padding: '1px 3px',
+          borderRadius: '2px',
+          fontWeight: '500',
+        });
+        element.appendChild(highlight);
+        Object.assign(element.style, {
+          color: this.isDark ? '#DCD7BA' : '#393836',
+          fontFamily: 'inherit',
+          background: 'transparent',
+          cursor: 'text'
+        });
+        return element;
+      case 'nested-strikethrough-highlight':
+        // Create nested element: highlight with strikethrough inside
+        element = document.createElement('mark');
+        const strikethrough = document.createElement('del');
+        strikethrough.textContent = this.text;
+        Object.assign(strikethrough.style, {
+          color: 'inherit',
+        });
+        element.appendChild(strikethrough);
+        Object.assign(element.style, {
+          backgroundColor: this.isDark ? '#7a9188' : '#fbbf24',
+          color: this.isDark ? '#1F1F28' : '#393836',
+          padding: '1px 3px',
+          borderRadius: '2px',
+          fontWeight: '500',
+          cursor: 'text'
+        });
         return element;
       default:
         element = document.createElement('span');
@@ -1767,6 +1805,10 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
           const doc = view.state.doc;
           const highlightRegex = /==([^=\n]+)==/g;
           const strikethroughRegex = /~~([^~\n]+)~~/g;
+
+          // Enhanced regex patterns for nested formatting
+          const nestedHighlightInStrikethroughRegex = /~~==([^=\n]+)==~~/g;
+          const nestedStrikethroughInHighlightRegex = /==~~([^~\n]+)~~==/g;
           const inlineMathRegex = /(?<!\$)\$(?!\$)([^$\n]+?)\$(?!\$)/g;  // Single $ for inline math
           const blockMathRegex = /^\s*\$\$\s*\n?([\s\S]*?)\n?\s*\$\$\s*$/gm; // Block math $$...$$
           const imageRegex = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g; // ![alt](src "title")
@@ -2042,42 +2084,95 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
               continue;
             }
 
-            // Check for highlight text ==text==
-            let highlightMatch;
-            while ((highlightMatch = highlightRegex.exec(lineText)) !== null) {
-              const matchStart = line.from + highlightMatch.index;
-              const matchEnd = matchStart + highlightMatch[0].length;
-              const innerText = highlightMatch[1];
+            // Check for nested formatting FIRST (before simple patterns)
+            // Check for nested formatting: highlight within strikethrough (~~==text==~~)
+            let nestedHighlightMatch;
+            while ((nestedHighlightMatch = nestedHighlightInStrikethroughRegex.exec(lineText)) !== null) {
+              const matchStart = line.from + nestedHighlightMatch.index;
+              const matchEnd = matchStart + nestedHighlightMatch[0].length;
+              const innerText = nestedHighlightMatch[1];
 
               if (innerText.trim()) {
-                const widget = new InlineFormatWidget(innerText, 'highlight', isDark);
+                const widget = new InlineFormatWidget(innerText, 'nested-highlight-strikethrough', isDark);
                 const decoration = Decoration.replace({
                   widget: widget
                 });
 
                 decorations.push({ from: matchStart, to: matchEnd, decoration });
+              }
+            }
+            nestedHighlightInStrikethroughRegex.lastIndex = 0;
+
+            // Check for nested formatting: strikethrough within highlight (==~~text~~==)
+            let nestedStrikethroughMatch;
+            while ((nestedStrikethroughMatch = nestedStrikethroughInHighlightRegex.exec(lineText)) !== null) {
+              const matchStart = line.from + nestedStrikethroughMatch.index;
+              const matchEnd = matchStart + nestedStrikethroughMatch[0].length;
+              const innerText = nestedStrikethroughMatch[1];
+
+              if (innerText.trim()) {
+                const widget = new InlineFormatWidget(innerText, 'nested-strikethrough-highlight', isDark);
+                const decoration = Decoration.replace({
+                  widget: widget
+                });
+
+                decorations.push({ from: matchStart, to: matchEnd, decoration });
+              }
+            }
+            nestedStrikethroughInHighlightRegex.lastIndex = 0;
+
+            // Check for highlight text ==text== (only if not already matched by nested patterns)
+            let highlightMatch;
+            while ((highlightMatch = highlightRegex.exec(lineText)) !== null) {
+              // Skip if this match is part of a nested pattern that was already processed
+              const isPartOfNested = decorations.some(dec =>
+                dec.from <= (line.from + highlightMatch.index) &&
+                dec.to >= (line.from + highlightMatch.index + highlightMatch[0].length)
+              );
+
+              if (!isPartOfNested) {
+                const matchStart = line.from + highlightMatch.index;
+                const matchEnd = matchStart + highlightMatch[0].length;
+                const innerText = highlightMatch[1];
+
+                if (innerText.trim()) {
+                  const widget = new InlineFormatWidget(innerText, 'highlight', isDark);
+                  const decoration = Decoration.replace({
+                    widget: widget
+                  });
+
+                  decorations.push({ from: matchStart, to: matchEnd, decoration });
+                }
               }
             }
             highlightRegex.lastIndex = 0;
 
-            // Check for strikethrough
+            // Check for strikethrough (only if not already matched by nested patterns)
             let match;
             while ((match = strikethroughRegex.exec(lineText)) !== null) {
-              const matchStart = line.from + match.index;
-              const matchEnd = matchStart + match[0].length;
-              const innerText = match[1];
-              
-              if (innerText.trim()) {
-                const widget = new InlineFormatWidget(innerText, 'strikethrough', isDark);
-                const decoration = Decoration.replace({
-                  widget: widget
-                });
-                
-                decorations.push({ from: matchStart, to: matchEnd, decoration });
+              // Skip if this match is part of a nested pattern that was already processed
+              const isPartOfNested = decorations.some(dec =>
+                dec.from <= (line.from + match.index) &&
+                dec.to >= (line.from + match.index + match[0].length)
+              );
+
+              if (!isPartOfNested) {
+                const matchStart = line.from + match.index;
+                const matchEnd = matchStart + match[0].length;
+                const innerText = match[1];
+
+                if (innerText.trim()) {
+                  const widget = new InlineFormatWidget(innerText, 'strikethrough', isDark);
+                  const decoration = Decoration.replace({
+                    widget: widget
+                  });
+
+                  decorations.push({ from: matchStart, to: matchEnd, decoration });
+                }
               }
             }
             strikethroughRegex.lastIndex = 0;
-            
+
             // Check for inline math equations ($...$)
             let mathMatch;
             while ((mathMatch = inlineMathRegex.exec(lineText)) !== null) {
