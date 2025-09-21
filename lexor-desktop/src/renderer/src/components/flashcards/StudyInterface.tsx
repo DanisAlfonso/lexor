@@ -413,21 +413,25 @@ export const StudyInterface: React.FC<StudyInterfaceProps> = ({
         showCardAnswer();
         break;
       case '1':
+      case 'h':
         if (showAnswer || rateFromBothSides) {
           handleRate(Rating.Again);
         }
         break;
       case '2':
+      case 'j':
         if (showAnswer || rateFromBothSides) {
           handleRate(Rating.Hard);
         }
         break;
       case '3':
+      case 'k':
         if (showAnswer || rateFromBothSides) {
           handleRate(Rating.Good);
         }
         break;
       case '4':
+      case 'l':
         if (showAnswer || rateFromBothSides) {
           handleRate(Rating.Easy);
         }

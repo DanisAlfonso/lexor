@@ -221,7 +221,7 @@ class HeadingWidget extends WidgetType {
 class InlineFormatWidget extends WidgetType {
   constructor(
     private text: string,
-    private format: 'bold' | 'italic' | 'bold-italic' | 'strikethrough' | 'code',
+    private format: 'bold' | 'italic' | 'bold-italic' | 'strikethrough' | 'code' | 'highlight',
     private isDark: boolean
   ) {
     super();
@@ -268,6 +268,18 @@ class InlineFormatWidget extends WidgetType {
           borderRadius: '3px',
           fontSize: '0.9em',
           fontFamily: 'SF Mono, Monaco, Consolas, Liberation Mono, Courier New, monospace',
+          cursor: 'text'
+        });
+        element.textContent = this.text;
+        return element;
+      case 'highlight':
+        element = document.createElement('mark');
+        Object.assign(element.style, {
+          backgroundColor: this.isDark ? '#7a9188' : '#fbbf24',
+          color: this.isDark ? '#1F1F28' : '#393836',
+          padding: '1px 3px',
+          borderRadius: '2px',
+          fontWeight: '500',
           cursor: 'text'
         });
         element.textContent = this.text;
@@ -575,6 +587,7 @@ class TableWidget extends WidgetType {
       .replace(/\*(.*?)\*/g, '<em>$1</em>')              // Italic
       .replace(/`(.*?)`/g, `<code style="background-color: ${this.isDark ? '#2A2A37' : '#f1f5f9'}; color: ${this.isDark ? '#ff9580' : '#c53030'}; padding: 2px 4px; border-radius: 3px; font-size: 0.9em;">$1</code>`) // Inline code
       .replace(/~~(.*?)~~/g, '<del>$1</del>')            // Strikethrough
+      .replace(/==(.*?)==/g, `<mark style="background-color: ${this.isDark ? '#7a9188' : '#fbbf24'}; color: ${this.isDark ? '#1F1F28' : '#393836'}; padding: 1px 3px; border-radius: 2px; font-weight: 500;">$1</mark>`) // Highlight
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" style="color: ${this.isDark ? '#a292a3' : '#a292a3'}; text-decoration: underline;">$1</a>`); // Links
   }
 
@@ -1750,8 +1763,9 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
             }
           });
 
-          // Add regex-based detection for strikethrough, equations, media, list items, and fenced code blocks
+          // Add regex-based detection for highlight, strikethrough, equations, media, list items, and fenced code blocks
           const doc = view.state.doc;
+          const highlightRegex = /==([^=\n]+)==/g;
           const strikethroughRegex = /~~([^~\n]+)~~/g;
           const inlineMathRegex = /(?<!\$)\$(?!\$)([^$\n]+?)\$(?!\$)/g;  // Single $ for inline math
           const blockMathRegex = /^\s*\$\$\s*\n?([\s\S]*?)\n?\s*\$\$\s*$/gm; // Block math $$...$$
@@ -2027,7 +2041,25 @@ export function conditionalLivePreview(isDark: boolean, lineHeight: number) {
               decorations.push({ from: line.from, to: line.to, decoration });
               continue;
             }
-            
+
+            // Check for highlight text ==text==
+            let highlightMatch;
+            while ((highlightMatch = highlightRegex.exec(lineText)) !== null) {
+              const matchStart = line.from + highlightMatch.index;
+              const matchEnd = matchStart + highlightMatch[0].length;
+              const innerText = highlightMatch[1];
+
+              if (innerText.trim()) {
+                const widget = new InlineFormatWidget(innerText, 'highlight', isDark);
+                const decoration = Decoration.replace({
+                  widget: widget
+                });
+
+                decorations.push({ from: matchStart, to: matchEnd, decoration });
+              }
+            }
+            highlightRegex.lastIndex = 0;
+
             // Check for strikethrough
             let match;
             while ((match = strikethroughRegex.exec(lineText)) !== null) {
