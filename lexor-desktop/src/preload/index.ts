@@ -225,6 +225,10 @@ const electronAPI = {
       ipcRenderer.on('menu:toggle-vim-mode', callback);
       return () => ipcRenderer.removeListener('menu:toggle-vim-mode', callback);
     },
+    onHighlightText: (callback: () => void) => {
+      ipcRenderer.on('menu:highlight-text', callback);
+      return () => ipcRenderer.removeListener('menu:highlight-text', callback);
+    },
   },
 
   // Database operations (for local SQLite database)

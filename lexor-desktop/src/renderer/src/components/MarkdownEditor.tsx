@@ -189,6 +189,39 @@ export function MarkdownEditor() {
     return () => window.removeEventListener('focusEditor', handleFocusEditor);
   }, [isSplitScreenMode, focusedPane]);
 
+  // Handle highlight text command from menu
+  useEffect(() => {
+    const handleHighlightText = () => {
+      // Simulate the keyboard shortcut by creating and dispatching a keyboard event
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const ctrlKey = !isMac;
+      const metaKey = isMac;
+
+      // Create a keyboard event for Cmd+Shift+H (Mac) or Ctrl+Shift+H (Windows/Linux)
+      const keyboardEvent = new KeyboardEvent('keydown', {
+        key: 'h',
+        code: 'KeyH',
+        ctrlKey: ctrlKey,
+        metaKey: metaKey,
+        shiftKey: true,
+        altKey: false,
+        bubbles: true,
+        cancelable: true
+      });
+
+      // Dispatch the event to the currently focused element
+      const activeElement = document.activeElement;
+      if (activeElement && activeElement instanceof HTMLElement) {
+        activeElement.dispatchEvent(keyboardEvent);
+      }
+    };
+
+    window.addEventListener('highlightText', handleHighlightText);
+    return () => {
+      window.removeEventListener('highlightText', handleHighlightText);
+    };
+  }, []);
+
   // Handle content change for left pane
   const handleLeftEditorChange = (value: string) => {
     setDocumentContent(value);

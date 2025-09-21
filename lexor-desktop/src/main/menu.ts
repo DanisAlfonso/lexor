@@ -108,8 +108,14 @@ export function createMenu(): Menu {
         { label: 'Paste', role: 'paste' },
         { label: 'Select All', role: 'selectAll' },
         { type: 'separator' },
-        { 
-          label: 'Rename', 
+        {
+          label: 'Highlight Text',
+          accelerator: 'CmdOrCtrl+Shift+H',
+          click: () => highlightText()
+        },
+        { type: 'separator' },
+        {
+          label: 'Rename',
           accelerator: 'F2',
           enabled: false, // Will be updated dynamically
           click: () => renameSelectedItem()
@@ -126,14 +132,14 @@ export function createMenu(): Menu {
           accelerator: 'CmdOrCtrl+F',
           click: () => showFind()
         },
-        { 
-          label: 'Find and Replace', 
+        {
+          label: 'Find and Replace',
           accelerator: 'CmdOrCtrl+H',
           click: () => showFindReplace()
         },
         { type: 'separator' },
-        { 
-          label: 'Vim Mode', 
+        {
+          label: 'Vim Mode',
           accelerator: 'CmdOrCtrl+Shift+V',
           type: 'checkbox',
           click: () => toggleVimMode()
@@ -620,6 +626,11 @@ function showFindReplace(): void {
 function toggleVimMode(): void {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   focusedWindow?.webContents.send('menu:toggle-vim-mode');
+}
+
+function highlightText(): void {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  focusedWindow?.webContents.send('menu:highlight-text');
 }
 
 function renameSelectedItem(): void {

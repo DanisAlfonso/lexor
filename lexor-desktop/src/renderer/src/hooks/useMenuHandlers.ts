@@ -231,6 +231,11 @@ export function useMenuHandlers() {
       console.log('Find and replace not implemented yet');
     };
 
+    const handleHighlightText = () => {
+      // Dispatch custom event to trigger highlighting in the editor
+      window.dispatchEvent(new CustomEvent('highlightText'));
+    };
+
     // Flashcard operations
     const handleNewFlashcard = () => {
       setCurrentView('flashcards');
@@ -384,6 +389,7 @@ export function useMenuHandlers() {
       window.electronAPI.menu.onPreferences(handlePreferences),
       window.electronAPI.menu.onFind(handleFind),
       window.electronAPI.menu.onFindReplace(handleFindReplace),
+      window.electronAPI.menu.onHighlightText(handleHighlightText),
       window.electronAPI.menu.onRenameSelected(handleRenameSelected),
       window.electronAPI.menu.onDeleteSelected(handleDeleteSelected),
       window.electronAPI.menu.onToggleSidebar(toggleSidebar),
