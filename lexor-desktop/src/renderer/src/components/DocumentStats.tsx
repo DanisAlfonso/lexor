@@ -10,20 +10,26 @@ import {
 } from '@heroicons/react/24/outline';
 
 export function DocumentStats() {
-  const { 
-    currentDocument, 
+  const {
+    currentDocument,
     documentStats,
     isAutoSaving,
     lastAutoSave,
     isDocumentModified,
     theme,
-    showDocumentStats
+    showDocumentStats,
+    isSplitScreenMode,
+    rightPaneDocument,
+    rightPaneDocumentStats,
+    isRightPaneModified,
+    focusedPane
   } = useAppStore();
   
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Don't show if no document is open or if stats are toggled off
-  if (!currentDocument || !showDocumentStats) return null;
+  const activeDocument = isSplitScreenMode && focusedPane === 'right' ? rightPaneDocument : currentDocument;
+  if (!activeDocument || !showDocumentStats) return null;
 
   const isDarkMode = theme === 'dark' || (theme === 'system' && 
     window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -32,16 +38,19 @@ export function DocumentStats() {
     if (isAutoSaving) {
       return { text: 'Auto-saving...', color: 'text-blue-500' };
     }
-    
-    if (isDocumentModified) {
+
+    // Check if the focused pane is modified
+    const isModified = isSplitScreenMode && focusedPane === 'right' ? isRightPaneModified : isDocumentModified;
+
+    if (isModified) {
       return { text: 'Unsaved', color: 'text-yellow-500' };
     }
-    
+
     if (lastAutoSave) {
       const timeDiff = Date.now() - lastAutoSave;
       const seconds = Math.floor(timeDiff / 1000);
       const minutes = Math.floor(seconds / 60);
-      
+
       if (minutes > 0) {
         return { text: `Saved ${minutes}m ago`, color: 'text-green-500' };
       } else if (seconds > 5) {
@@ -50,11 +59,14 @@ export function DocumentStats() {
         return { text: 'Saved', color: 'text-green-500' };
       }
     }
-    
+
     return { text: 'Ready', color: 'text-green-500' };
   };
 
   const autoSaveStatus = getAutoSaveStatus();
+
+  // Helper to get the active document stats
+  const activeStats = isSplitScreenMode && focusedPane === 'right' ? rightPaneDocumentStats : documentStats;
 
   return (
     <div className={clsx(
@@ -80,8 +92,8 @@ export function DocumentStats() {
           <div className="flex items-center space-x-2">
             <div className={clsx(
               'w-2 h-2 rounded-full transition-colors',
-              isAutoSaving ? 'bg-blue-500 animate-pulse' : 
-              isDocumentModified ? 'bg-yellow-500' : 'bg-green-500'
+              isAutoSaving ? 'bg-blue-500 animate-pulse' :
+              (isSplitScreenMode && focusedPane === 'right' ? isRightPaneModified : isDocumentModified) ? 'bg-yellow-500' : 'bg-green-500'
             )} />
             <span className={clsx(
               'text-xs font-medium transition-colors',
@@ -101,12 +113,12 @@ export function DocumentStats() {
               'text-xs font-medium',
               isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
             )}>
-              {formatWordCount(documentStats.words)}
+              {formatWordCount(activeStats.words)}
             </span>
           </div>
 
           {/* Reading Time */}
-          {documentStats.readingTimeMinutes > 0 && (
+          {activeStats.readingTimeMinutes > 0 && (
             <div className="flex items-center space-x-2">
               <ClockIcon className={clsx(
                 'w-4 h-4',
@@ -116,7 +128,7 @@ export function DocumentStats() {
                 'text-xs font-medium',
                 isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
               )}>
-                {formatReadingTime(documentStats.readingTimeMinutes)}
+                {formatReadingTime(activeStats.readingTimeMinutes)}
               </span>
             </div>
           )}
@@ -150,7 +162,7 @@ export function DocumentStats() {
                 'text-sm font-semibold',
                 isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-900'
               )}>
-                {formatCharacterCount(documentStats.characters)}
+                {formatCharacterCount(activeStats.characters)}
               </span>
             </div>
 
@@ -166,7 +178,7 @@ export function DocumentStats() {
                 'text-sm font-semibold',
                 isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-900'
               )}>
-                {formatCharacterCount(documentStats.charactersNoSpaces)}
+                {formatCharacterCount(activeStats.charactersNoSpaces)}
               </span>
             </div>
 
@@ -182,7 +194,7 @@ export function DocumentStats() {
                 'text-sm font-semibold',
                 isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-900'
               )}>
-                {documentStats.paragraphs}
+                {activeStats.paragraphs}
               </span>
             </div>
 
@@ -198,7 +210,7 @@ export function DocumentStats() {
                 'text-sm font-semibold',
                 isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-900'
               )}>
-                {documentStats.lines}
+                {activeStats.lines}
               </span>
             </div>
           </div>
@@ -218,7 +230,15 @@ export function DocumentStats() {
               'text-xs font-medium truncate mt-1',
               isDarkMode ? 'text-kanagawa-oldwhite' : 'text-gray-700'
             )}>
-              {currentDocument.split('/').pop()}
+              {activeDocument.split('/').pop()}
+              {isSplitScreenMode && (
+                <span className={clsx(
+                  'ml-1 text-xs',
+                  isDarkMode ? 'text-kanagawa-gray' : 'text-gray-500'
+                )}>
+                  ({focusedPane === 'right' ? 'Right' : 'Left'} Pane)
+                </span>
+              )}
             </p>
           </div>
         </div>

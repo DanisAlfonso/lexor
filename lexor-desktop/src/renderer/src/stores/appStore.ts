@@ -36,6 +36,7 @@ export interface AppState {
   rightPaneDocument: string | null;
   rightPaneContent: string;
   isRightPaneModified: boolean;
+  rightPaneDocumentStats: DocumentStats;
   focusedPane: 'left' | 'right';
   splitRatio: number; // 0.5 = equal split, 0.3 = left smaller, 0.7 = left larger
 
@@ -178,6 +179,14 @@ export const useAppStore = create<AppState>()(
       rightPaneDocument: null,
       rightPaneContent: '',
       isRightPaneModified: false,
+      rightPaneDocumentStats: {
+        words: 0,
+        characters: 0,
+        charactersNoSpaces: 0,
+        paragraphs: 0,
+        readingTimeMinutes: 0,
+        lines: 0,
+      },
       focusedPane: 'left',
       splitRatio: 0.5,
 
@@ -335,11 +344,19 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      closeSplitScreen: () => set({ 
+      closeSplitScreen: () => set({
         isSplitScreenMode: false,
         rightPaneDocument: null,
         rightPaneContent: '',
         isRightPaneModified: false,
+        rightPaneDocumentStats: {
+          words: 0,
+          characters: 0,
+          charactersNoSpaces: 0,
+          paragraphs: 0,
+          readingTimeMinutes: 0,
+          lines: 0,
+        },
         focusedPane: 'left'
       }),
 
@@ -359,11 +376,13 @@ export const useAppStore = create<AppState>()(
 
       setRightPaneContent: (content) => {
         const state = get();
-        set({ 
+        const rightPaneDocumentStats = calculateDocumentStats(content);
+        set({
           rightPaneContent: content,
-          isRightPaneModified: true
+          isRightPaneModified: true,
+          rightPaneDocumentStats
         });
-        
+
         // If both panes show the same document, keep modification state in sync
         if (state.currentDocument === state.rightPaneDocument) {
           set({ isDocumentModified: true });
@@ -722,27 +741,35 @@ Happy writing!
       
       triggerAutoSave: async () => {
         const state = get();
-        
-        // Only auto-save if enabled, document exists, is modified, and not already saving
-        if (!state.isAutoSaveEnabled || !state.currentDocument || !state.isDocumentModified || state.isAutoSaving) {
+
+        // Only auto-save if enabled and not already saving
+        if (!state.isAutoSaveEnabled || state.isAutoSaving) {
           return;
         }
-        
+
         try {
           set({ isAutoSaving: true });
-          
+
           if (window.electronAPI?.file?.writeFile) {
-            await window.electronAPI.file.writeFile(state.currentDocument, state.documentContent);
-            set({ 
-              isDocumentModified: false,
+            // Save left pane if it has a document and is modified
+            if (state.currentDocument && state.isDocumentModified) {
+              await window.electronAPI.file.writeFile(state.currentDocument, state.documentContent);
+              set({ isDocumentModified: false });
+            }
+
+            // Save right pane if it has a different document and is modified
+            if (state.isSplitScreenMode && state.rightPaneDocument && state.isRightPaneModified) {
+              // Only save right pane if it's a different document than the left pane
+              if (state.rightPaneDocument !== state.currentDocument) {
+                await window.electronAPI.file.writeFile(state.rightPaneDocument, state.rightPaneContent);
+                set({ isRightPaneModified: false });
+              }
+            }
+
+            set({
               lastAutoSave: Date.now(),
               isAutoSaving: false
             });
-            
-            // If split screen mode and both panes show same document, update right pane too
-            if (state.isSplitScreenMode && state.currentDocument === state.rightPaneDocument) {
-              set({ isRightPaneModified: false });
-            }
           }
         } catch (error) {
           console.error('Auto-save failed:', error);

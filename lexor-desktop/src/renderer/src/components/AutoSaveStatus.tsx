@@ -3,35 +3,43 @@ import { useAppStore } from '../stores/appStore';
 import { clsx } from 'clsx';
 
 export function AutoSaveStatus() {
-  const { 
-    isAutoSaveEnabled, 
-    isAutoSaving, 
-    lastAutoSave, 
+  const {
+    isAutoSaveEnabled,
+    isAutoSaving,
+    lastAutoSave,
     isDocumentModified,
-    currentDocument 
+    currentDocument,
+    isSplitScreenMode,
+    isRightPaneModified,
+    rightPaneDocument,
+    focusedPane
   } = useAppStore();
 
   // Don't show status if no document is open
-  if (!currentDocument) return null;
+  const activeDocument = isSplitScreenMode && focusedPane === 'right' ? rightPaneDocument : currentDocument;
+  if (!activeDocument) return null;
 
   const getStatusText = () => {
     if (isAutoSaving) {
       return 'Auto-saving...';
     }
-    
+
+    // Check if the focused pane is modified
+    const isModified = isSplitScreenMode && focusedPane === 'right' ? isRightPaneModified : isDocumentModified;
+
     if (!isAutoSaveEnabled) {
-      return isDocumentModified ? 'Unsaved changes' : 'Saved';
+      return isModified ? 'Unsaved changes' : 'Saved';
     }
-    
-    if (isDocumentModified) {
+
+    if (isModified) {
       return 'Unsaved changes';
     }
-    
+
     if (lastAutoSave) {
       const timeDiff = Date.now() - lastAutoSave;
       const seconds = Math.floor(timeDiff / 1000);
       const minutes = Math.floor(seconds / 60);
-      
+
       if (minutes > 0) {
         return `Auto-saved ${minutes}m ago`;
       } else if (seconds > 5) {
@@ -40,7 +48,7 @@ export function AutoSaveStatus() {
         return 'Auto-saved';
       }
     }
-    
+
     return 'Ready';
   };
 
@@ -48,11 +56,14 @@ export function AutoSaveStatus() {
     if (isAutoSaving) {
       return 'text-blue-500';
     }
-    
-    if (isDocumentModified) {
+
+    // Check if the focused pane is modified
+    const isModified = isSplitScreenMode && focusedPane === 'right' ? isRightPaneModified : isDocumentModified;
+
+    if (isModified) {
       return 'text-yellow-500';
     }
-    
+
     return 'text-green-500';
   };
 
@@ -68,8 +79,8 @@ export function AutoSaveStatus() {
     )}>
       <div className={clsx(
         'w-2 h-2 rounded-full mr-2 transition-colors',
-        isAutoSaving ? 'bg-blue-500 animate-pulse' : 
-        isDocumentModified ? 'bg-yellow-500' : 'bg-green-500'
+        isAutoSaving ? 'bg-blue-500 animate-pulse' :
+        (isSplitScreenMode && focusedPane === 'right' ? isRightPaneModified : isDocumentModified) ? 'bg-yellow-500' : 'bg-green-500'
       )} />
       <span className={clsx('transition-colors', getStatusColor())}>
         {getStatusText()}

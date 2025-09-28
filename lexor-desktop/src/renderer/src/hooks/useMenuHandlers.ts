@@ -29,6 +29,7 @@ export function useMenuHandlers() {
     setFocusedPane,
     swapPanes,
     isSplitScreenMode,
+    setRightPaneModified,
     // Scrollbar toggle
     toggleScrollbar,
     // Document stats toggle
@@ -177,14 +178,37 @@ export function useMenuHandlers() {
     };
 
     const handleSaveDocument = async () => {
-      const { currentDocument, documentContent } = useAppStore.getState();
-      
+      const {
+        currentDocument,
+        documentContent,
+        isDocumentModified,
+        isSplitScreenMode,
+        rightPaneDocument,
+        rightPaneContent,
+        isRightPaneModified,
+        focusedPane
+      } = useAppStore.getState();
+
       try {
-        if (currentDocument) {
-          await window.electronAPI.file.writeFile(currentDocument, documentContent);
-          setDocumentModified(false);
+        // In split screen mode, save the focused pane
+        if (isSplitScreenMode) {
+          if (focusedPane === 'right' && rightPaneDocument && isRightPaneModified) {
+            // Save right pane (focused)
+            await window.electronAPI.file.writeFile(rightPaneDocument, rightPaneContent);
+            setRightPaneModified(false);
+          } else if (currentDocument && isDocumentModified) {
+            // Save left pane (focused or fallback)
+            await window.electronAPI.file.writeFile(currentDocument, documentContent);
+            setDocumentModified(false);
+          }
         } else {
-          handleSaveDocumentAs();
+          // Not in split screen mode - save main document
+          if (currentDocument) {
+            await window.electronAPI.file.writeFile(currentDocument, documentContent);
+            setDocumentModified(false);
+          } else {
+            handleSaveDocumentAs();
+          }
         }
       } catch (error) {
         console.error('Failed to save document:', error);
@@ -451,6 +475,7 @@ export function useMenuHandlers() {
     setFocusedPane,
     swapPanes,
     isSplitScreenMode,
+    setRightPaneModified,
     toggleScrollbar,
     toggleDocumentStats,
     toggleVimMode,

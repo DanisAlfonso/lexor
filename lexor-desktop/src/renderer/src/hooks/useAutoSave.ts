@@ -9,6 +9,9 @@ export function useAutoSave() {
     currentDocument,
     isAutoSaving,
     triggerAutoSave,
+    isSplitScreenMode,
+    isRightPaneModified,
+    rightPaneDocument,
   } = useAppStore();
 
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -22,8 +25,8 @@ export function useAutoSave() {
       autoSaveTimerRef.current = null;
     }
 
-    // Only set up auto-save if enabled and document exists
-    if (!isAutoSaveEnabled || !currentDocument) {
+    // Only set up auto-save if enabled and at least one document exists
+    if (!isAutoSaveEnabled || (!currentDocument && !(isSplitScreenMode && rightPaneDocument))) {
       return;
     }
 
@@ -60,19 +63,20 @@ export function useAutoSave() {
         autoSaveTimerRef.current = null;
       }
     };
-  }, [isAutoSaveEnabled, autoSaveInterval, currentDocument, triggerAutoSave]);
+  }, [isAutoSaveEnabled, autoSaveInterval, currentDocument, rightPaneDocument, isSplitScreenMode, triggerAutoSave]);
 
   // Track when document is modified to implement typing debounce
   useEffect(() => {
-    if (isDocumentModified) {
+    if (isDocumentModified || (isSplitScreenMode && isRightPaneModified)) {
       lastModificationTimeRef.current = Date.now();
     }
-  }, [isDocumentModified]);
+  }, [isDocumentModified, isRightPaneModified, isSplitScreenMode]);
 
   // Return auto-save status for UI feedback
   return {
     isAutoSaveEnabled,
     isAutoSaving,
     autoSaveInterval,
+    hasModifiedDocument: isDocumentModified || (isSplitScreenMode && isRightPaneModified),
   };
 }
